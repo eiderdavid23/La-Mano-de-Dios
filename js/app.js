@@ -156,7 +156,7 @@ function formProducto(id) {
     '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '">' +
     '<label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo">' +
     '<label>Avisar cuando queden (gramos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimoG + '">' +
-    (id ? '' : '<label>Stock inicial (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="0">') +
+    '<label>' + (id ? 'Stock actual' : 'Stock inicial') + ' (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.stockG || 0) + '">' +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
   hintGr();
 }
@@ -167,7 +167,7 @@ function hintGr() {
 function guardarProducto(id) {
   const nombre = $('#f-nombre').value.trim();
   if (!nombre) return toast('Escribe el nombre');
-  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: num($('#f-gpr').value), precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimoG: num($('#f-min').value) };
+  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: num($('#f-gpr').value), precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimoG: num($('#f-min').value), stockG: r2(num($('#f-stock').value)) };
   if (id) Object.assign(prod(id), d);
   else db.productos.push(Object.assign({ id: uid(), stockG: num($('#f-stock').value) }, d));
   guardar(); cerrarModal(); render(); toast('Producto guardado ✅');
@@ -183,7 +183,7 @@ const gUni = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 function formIngreso(id) {
   const p = prod(id);
   modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Se suma al stock en gramos. Puedes cambiar estos datos en cada ingreso</div>' +
-    '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos</option><option value="lb">Libras (500 g)</option></select>' +
+    '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos (1000 g)</option><option value="lb">Libras (500 g)</option></select>' +
     '<label>Cantidad que llegó</label><input id="i-cant" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
     '<label>Gramos que pesa 1 rollo</label><input id="i-gpr" type="number" inputmode="decimal" value="' + (gpr(p) || '') + '" placeholder="Ej: 33" oninput="prevIngreso(\'' + id + '\')">' +
     '<label id="i-lblc">Costo por kilo ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '">' +
