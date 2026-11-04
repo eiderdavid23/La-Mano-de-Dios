@@ -1,5 +1,6 @@
 // ===== Datos =====
 function p2(n) { return String(n).padStart(2, '0'); }
+const r2 = n => Math.round(n * 100) / 100;
 const KEY = 'control_rollos_v1';
 let db = cargar();
 let vista = 'inicio';
@@ -12,8 +13,20 @@ const COLS = ['productos', 'entradas', 'ventas'];
 const est = o => o ? JSON.stringify(o, Object.keys(o).sort()) : 'null';
 
 function cargar() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.productos) return d; } catch (e) {}
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.productos) return migrar(d); } catch (e) {}
   return { productos: [], entradas: [], ventas: [] };
+}
+// Datos viejos (stock en rollos) -> stock en gramos
+function migrar(d) {
+  (d.productos || []).forEach(p => {
+    if (p.gramosPorRollo !== undefined) return;
+    const g = p.rollosPorKilo > 0 ? 1000 / p.rollosPorKilo : 0;
+    p.gramosPorRollo = r2(g);
+    p.stockG = r2((p.stock || 0) * g);
+    p.minimoG = r2((p.minimo || 0) * g);
+    delete p.rollosPorKilo; delete p.stock; delete p.minimo;
+  });
+  return d;
 }
 function guardar() {
   if (!NUBE) { localStorage.setItem(KEY, JSON.stringify(db)); return; }
@@ -39,7 +52,11 @@ const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isN
 const money = n => (n < 0 ? '-' : '') + '$' + Math.round(Math.abs(n)).toLocaleString('es-CO');
 const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO');
 const prod = id => db.productos.find(p => p.id === id);
-const costoRollo = p => p.rollosPorKilo > 0 ? p.costoKilo / p.rollosPorKilo : 0;
+const gpr = p => p.gramosPorRollo || 0;
+const fmtG = g => fmt(g) + ' g';
+const rollosDisp = p => gpr(p) > 0 ? Math.floor(p.stockG / gpr(p) + 1e-9) : 0;
+const bajo = p => p.stockG <= p.minimoG;
+const costoRollo = p => gpr(p) > 0 ? p.costoKilo * gpr(p) / 1000 : 0;
 const gananciaRollo = p => p.precio - costoRollo(p);
 function nombreMes(ym) {
   const [y, m] = ym.split('-').map(Number);
@@ -95,14 +112,14 @@ function render() {
 // ===== Inicio =====
 function vInicio() {
   const vh = ventasDia(hoy()), vm = ventasMes(hoy().slice(0, 7));
-  const bajos = db.productos.filter(p => p.stock <= p.minimo);
+  const bajos = db.productos.filter(p => bajo(p));
   return '<div class="hero"><small>Ganancia de hoy</small><b>' + money(suma(vh, 'ganancia')) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
     '<div class="grid">' +
     '<div class="bubble wide"><small>Ganancia del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="pos">' + money(suma(vm, 'ganancia')) + '</b></div>' +
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>⚠️ Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmt(p.stock) + ' rollos</span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>⚠️ Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '</span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en 📦 Stock</div>' : '');
 }
 
@@ -115,11 +132,12 @@ function listaStock() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
   return l.map(p =>
-    '<div class="item ' + (p.stock <= p.minimo ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
-    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + p.unidadesRollo + ' unid. por rollo · ≈ ' + Math.floor(p.stock * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' +
-    (p.rollosPorKilo > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir rollos por kilo</b>') + '</div></div>' +
-    '<span class="pill ' + (p.stock <= p.minimo ? 'low' : '') + '">' + fmt(p.stock) + ' rollos</span></div>' +
-    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
+    '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
+    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' +
+    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Alcanza para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
+    (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
+    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '</span></div>' +
+    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
 }
 
@@ -128,31 +146,30 @@ function opcionesCat(sel) {
   if (sel && !lista.includes(sel)) lista.splice(2, 0, sel);
   return lista.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
 }
-function opcionesCat(sel) {
-  const lista = ['Aliños', 'Salsas', 'Otro'];
-  if (sel && !lista.includes(sel)) lista.splice(2, 0, sel);
-  return lista.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
-}
 function formProducto(id) {
-  const p = id ? prod(id) : { nombre: '', categoria: '', unidadesRollo: 14, rollosPorKilo: '', precio: 2000, costoKilo: '', minimo: 5, stock: 0 };
+  const p = id ? prod(id) : { nombre: '', categoria: '', unidadesRollo: 14, gramosPorRollo: '', precio: 2000, costoKilo: '', minimoG: 500, stockG: 0 };
   modal('<h3>' + (id ? 'Editar producto' : 'Nuevo producto') + '</h3>' +
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
     '<label>Categoría</label><select id="f-cat">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades por rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + p.unidadesRollo + '">' +
-    '<label>Rollos que salen de 1 kilo</label><input id="f-rpk" type="number" inputmode="decimal" value="' + p.rollosPorKilo + '" placeholder="Ej: 30"><div class="hint">Con esto se convierten los kilos a rollos. Si aún no lo sabes, déjalo vacío y lo defines después con Editar.</div>' +
+    '<label>Gramos que pesa 1 rollo</label><input id="f-gpr" type="number" inputmode="decimal" value="' + p.gramosPorRollo + '" placeholder="Ej: 33" oninput="hintGr()"><div class="hint" id="f-hint"></div>' +
     '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '">' +
     '<label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo">' +
-    '<label>Avisar cuando queden (rollos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimo + '">' +
-    (id ? '' : '<label>Stock inicial (rollos)</label><input id="f-stock" type="number" inputmode="decimal" value="0">') +
+    '<label>Avisar cuando queden (gramos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimoG + '">' +
+    (id ? '' : '<label>Stock inicial (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="0">') +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
+  hintGr();
+}
+function hintGr() {
+  const g = num($('#f-gpr').value);
+  $('#f-hint').textContent = g > 0 ? '1 kilo ≈ ' + fmt(1000 / g) + ' rollos · 1 libra (500 g) ≈ ' + fmt(500 / g) + ' rollos' : 'Pesa un rollo y escribe cuántos gramos tiene. Así sabes cuántos rollos salen por kilo.';
 }
 function guardarProducto(id) {
   const nombre = $('#f-nombre').value.trim();
-  const rpk = num($('#f-rpk').value);
   if (!nombre) return toast('Escribe el nombre');
-  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, rollosPorKilo: rpk, precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimo: num($('#f-min').value) };
+  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: num($('#f-gpr').value), precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimoG: num($('#f-min').value) };
   if (id) Object.assign(prod(id), d);
-  else db.productos.push(Object.assign({ id: uid(), stock: num($('#f-stock').value) }, d));
+  else db.productos.push(Object.assign({ id: uid(), stockG: num($('#f-stock').value) }, d));
   guardar(); cerrarModal(); render(); toast('Producto guardado ✅');
 }
 function borrarProducto(id) {
@@ -161,29 +178,37 @@ function borrarProducto(id) {
   guardar(); render();
 }
 
-// ===== Ingreso por kilos =====
+// ===== Ingreso por kilos / libras =====
+const gUni = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 function formIngreso(id) {
   const p = prod(id);
-  modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Puedes cambiar estos datos en cada ingreso</div>' +
-    '<label>Kilos que llegaron</label><input id="i-kilos" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
-    '<label>Rollos que salen de 1 kilo</label><input id="i-rpk" type="number" inputmode="decimal" value="' + (p.rollosPorKilo || '') + '" placeholder="Ej: 30" oninput="prevIngreso(\'' + id + '\')">' +
-    '<label>Costo por kilo ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '">' +
-    '<div class="preview" id="i-prev">= 0 rollos</div>' +
+  modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Se suma al stock en gramos. Puedes cambiar estos datos en cada ingreso</div>' +
+    '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos</option><option value="lb">Libras (500 g)</option></select>' +
+    '<label>Cantidad que llegó</label><input id="i-cant" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
+    '<label>Gramos que pesa 1 rollo</label><input id="i-gpr" type="number" inputmode="decimal" value="' + (gpr(p) || '') + '" placeholder="Ej: 33" oninput="prevIngreso(\'' + id + '\')">' +
+    '<label id="i-lblc">Costo por kilo ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '">' +
+    '<div class="preview" id="i-prev"></div>' +
     '<button class="btn main full" onclick="confirmarIngreso(\'' + id + '\')">Agregar al stock</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
+  prevIngreso(id);
+}
+function cambiarUnidad(id) {
+  const p = prod(id), lb = gUni() === 500;
+  $('#i-lblc').textContent = 'Costo por ' + (lb ? 'libra' : 'kilo') + ' ($)';
+  $('#i-costo').value = p.costoKilo ? r2(p.costoKilo * gUni() / 1000) : '';
+  prevIngreso(id);
 }
 function prevIngreso(id) {
-  const r = num($('#i-kilos').value) * num($('#i-rpk').value);
-  $('#i-prev').textContent = '= ' + fmt(r) + ' rollos';
+  const p = prod(id), g = num($('#i-cant').value) * gUni(), gp = num($('#i-gpr').value);
+  $('#i-prev').textContent = '= ' + fmt(g) + ' g' + (gp > 0 ? ' · ≈ ' + fmt(Math.floor(g / gp)) + ' rollos' : '') + ' · stock queda en ' + fmtG(p.stockG + g);
 }
 function confirmarIngreso(id) {
-  const p = prod(id), kilos = num($('#i-kilos').value);
-  const rpk = num($('#i-rpk').value);
-  if (kilos <= 0) return toast('Escribe los kilos');
-  if (rpk <= 0) return toast('Escribe cuántos rollos salen de 1 kilo');
-  const rollos = kilos * rpk, costo = num($('#i-costo').value);
-  p.stock += rollos; p.costoKilo = costo; p.rollosPorKilo = rpk;
-  db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, kilos, rollos, costoKilo: costo });
-  guardar(); cerrarModal(); render(); toast('+' + fmt(rollos) + ' rollos ✅');
+  const p = prod(id), cant = num($('#i-cant').value), gp = num($('#i-gpr').value);
+  if (cant <= 0) return toast('Escribe la cantidad');
+  if (gp <= 0) return toast('Escribe cuántos gramos pesa 1 rollo');
+  const g = r2(cant * gUni()), costoKilo = num($('#i-costo').value) * 1000 / gUni();
+  p.stockG = r2(p.stockG + g); p.costoKilo = r2(costoKilo); p.gramosPorRollo = gp;
+  db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, cantidad: cant, unidad: $('#i-uni').value, gramos: g, costoKilo: p.costoKilo });
+  guardar(); cerrarModal(); render(); toast('+' + fmt(g) + ' g ✅');
 }
 
 // ===== Vender =====
@@ -197,12 +222,13 @@ function vVender() {
 function listaVender() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u</div></div><span class="pill ' + (p.stock <= p.minimo ? 'low' : '') + '">' + fmt(p.stock) + ' rollos</span></div></div>').join('');
+  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '</span></div></div>').join('');
 }
 function formVenta(id) {
   const p = prod(id);
-  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Disponible: ' + fmt(p.stock) + ' rollos · ' + money(p.precio) + ' c/u</div>' +
-    '<div class="step"><button onclick="ajustarQty(-1,\'' + id + '\')">−</button><input id="v-qty" type="number" inputmode="decimal" value="1" oninput="calcVenta(\'' + id + '\')"><button onclick="ajustarQty(1,\'' + id + '\')">+</button></div>' +
+  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Stock: ' + fmtG(p.stockG) + ' (≈ ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos) · ' + money(p.precio) + ' c/u</div>' +
+    '<label>Rollos</label><div class="step"><button onclick="ajustarQty(-1,\'' + id + '\')">−</button><input id="v-qty" type="number" inputmode="decimal" value="1" oninput="calcVenta(\'' + id + '\')"><button onclick="ajustarQty(1,\'' + id + '\')">+</button></div>' +
+    '<div class="hint" id="v-g"></div>' +
     '<div class="total"><b id="v-total"></b><span class="pos" id="v-gan"></span></div>' +
     '<button class="btn main full" onclick="registrarVenta(\'' + id + '\')">Registrar venta</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
   calcVenta(id);
@@ -212,22 +238,24 @@ function ajustarQty(d, id) { $('#v-qty').value = Math.max(1, Math.round((qtyVent
 function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
-  $('#v-gan').textContent = p.rollosPorKilo > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir rollos por kilo';
+  $('#v-g').textContent = gpr(p) > 0 ? q + ' rollos × ' + fmtG(gpr(p)) + ' = se descuentan ' + fmtG(q * gpr(p)) + ' del stock' : '';
+  $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir gramos por rollo';
 }
 function registrarVenta(id) {
   const p = prod(id), q = qtyVenta();
   if (q <= 0) return toast('Escribe la cantidad');
-  if (!(p.rollosPorKilo > 0)) return toast('Primero define los rollos por kilo (Stock → Editar)');
-  if (q > p.stock) return toast('Solo hay ' + fmt(p.stock) + ' rollos en stock');
+  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Stock → Editar)');
+  const g = r2(q * gpr(p));
+  if (g > p.stockG + 1e-6) return toast('Solo alcanza para ' + rollosDisp(p) + ' rollos (' + fmtG(p.stockG) + ')');
   const costo = costoRollo(p);
-  db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
-  p.stock -= q;
+  db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, gramos: g, precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
+  p.stockG = Math.max(0, r2(p.stockG - g));
   guardar(); cerrarModal(); render(); toast('Venta registrada ✅');
 }
 function borrarVenta(id) {
   const v = db.ventas.find(x => x.id === id);
   if (!v || !confirm('¿Deshacer esta venta? El stock se devuelve.')) return;
-  const p = prod(v.productoId); if (p) p.stock += v.rollos;
+  const p = prod(v.productoId); if (p) p.stockG = r2(p.stockG + (v.gramos != null ? v.gramos : v.rollos * gpr(p)));
   db.ventas = db.ventas.filter(x => x.id !== id);
   guardar(); render();
 }
@@ -278,7 +306,7 @@ function importar(inp) {
       const d = JSON.parse(r.result);
       if (!d.productos || !d.ventas) throw 0;
       if (!confirm('Esto reemplaza los datos actuales. ¿Continuar?')) return;
-      db = { productos: d.productos, entradas: d.entradas || [], ventas: d.ventas };
+      db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas });
       guardar(); cerrarModal(); render(); toast('Copia restaurada ✅');
     } catch (e) { toast('Archivo no válido'); }
   };
@@ -306,11 +334,11 @@ function escuchar() {
       db = local; listo = true; guardar();
       localStorage.setItem(KEY + '_subido', '1'); render(); return;
     }
-    db = {
+    db = migrar({
       productos: Object.values(remoto.productos).map(x => Object.assign({}, x)),
       entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
       ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
-    };
+    });
     listo = true; render();
   }, () => { toast('Este usuario no tiene permiso'); firebase.auth().signOut(); });
 }
