@@ -344,6 +344,7 @@ function importar(inp) {
 let usrRef = null, usrAdminRef = null, miPerfil = null, listaUsr = {}, modoCrear = false;
 const usuarioActual = () => { const u = firebase.auth().currentUser; return u && u.email ? u.email.replace('@manodedios.app', '') : ''; };
 function iniciarNube() {
+  try { firebase.database.INTERNAL.forceLongPolling(); } catch (e) {}
   firebase.initializeApp(firebaseConfig);
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
