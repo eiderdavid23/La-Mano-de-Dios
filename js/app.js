@@ -307,7 +307,7 @@ function vGanancias() {
 
 // ===== Ajustes / respaldo =====
 function abrirAjustes() {
-  modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">' + (NUBE ? 'Tus datos se guardan en la nube. Igual puedes bajar una copia.' : 'Los datos viven en este teléfono. Guarda una copia de vez en cuando.') + '</div>' +
+  modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">' + (NUBE ? 'Sesión: ' + usuarioActual() + '. Tus datos se guardan en la nube. Igual puedes bajar una copia.' : 'Los datos viven en este teléfono. Guarda una copia de vez en cuando.') + '</div>' +
     '<button class="btn main full" onclick="exportar()">⬇️ Descargar copia</button>' +
     '<label>Restaurar copia</label><input type="file" accept=".json" onchange="importar(this)">' +
     (NUBE ? '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' : '') +
@@ -336,6 +336,7 @@ function importar(inp) {
 // ===== Nube (Firebase) =====
 function iniciarNube() {
   firebase.initializeApp(firebaseConfig);
+  try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
     if (u) { $('#nav').style.display = ''; escuchar(); }
     else { desuscribir(); mostrarLogin(); }
@@ -365,14 +366,18 @@ function escuchar() {
 function mostrarLogin() {
   $('#nav').style.display = 'none';
   $('#app').innerHTML = '<div class="fade"><h2>Iniciar sesión</h2><div class="bubble">' +
-    '<label>Correo</label><input id="l-mail" type="email" autocomplete="username">' +
+    '<label>Usuario</label><input id="l-mail" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="Ej: rodrigo">' +
     '<label>Contraseña</label><input id="l-pass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')entrar()">' +
     '<button class="btn main full" style="margin-top:16px" onclick="entrar()">Entrar</button></div></div>';
 }
 function entrar() {
-  const m = $('#l-mail').value.trim(), c = $('#l-pass').value;
-  if (!m || !c) return toast('Escribe correo y contraseña');
-  firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Correo o contraseña incorrectos'));
+  const u = $('#l-mail').value.trim().toLowerCase().replace(/\s+/g, ''), c = $('#l-pass').value, m = u.includes('@') ? u : u + '@manodedios.app';
+  if (!u || !c) return toast('Escribe usuario y contraseña');
+  firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Usuario o contraseña incorrectos'));
+}
+function usuarioActual() {
+  const u = firebase.auth().currentUser;
+  return u && u.email ? u.email.replace('@manodedios.app', '') : '';
 }
 function salir() { cerrarModal(); firebase.auth().signOut(); }
 
