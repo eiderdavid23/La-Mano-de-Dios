@@ -348,8 +348,23 @@ function iniciarNube() {
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
     desuscribir();
-    if (u) perfil(u); else mostrarLogin();
+    if (u) { paso = 'leyendo perfil'; vigilar(); perfil(u); } else { clearTimeout(timer); mostrarLogin(); }
   });
+}
+let paso = '', timer = null;
+function vigilar() {
+  clearTimeout(timer);
+  timer = setTimeout(() => { if (!listo && firebase.auth().currentUser) mostrarError(); }, 8000);
+}
+function mostrarError() {
+  $('#nav').style.display = 'none';
+  $('#app').innerHTML = '<div class="fade"><h2>No carga ⚠️</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Se quedó en: ' + esc(paso || 'inicio') + '</div><button class="btn main full" onclick="reintentar()">Reintentar</button><button class="btn full" style="margin-top:10px" onclick="salir()">Cerrar sesión</button></div></div>';
+}
+function reintentar() {
+  desuscribir();
+  $('#app').innerHTML = '<div class="empty">Cargando…</div>';
+  const u = firebase.auth().currentUser;
+  if (u) { paso = 'leyendo perfil'; vigilar(); perfil(u); } else mostrarLogin();
 }
 function desuscribir() {
   if (fbRef) fbRef.off();
@@ -369,6 +384,7 @@ function perfil(u) {
       usrRef.on('value', s => {
         miPerfil = s.val();
         if (miPerfil && miPerfil.aprobado === true) {
+          paso = 'leyendo datos del negocio';
           if (!fbRef) escuchar();
           if (miPerfil.admin === true) vigilarUsuarios();
           else if (usrAdminRef) { usrAdminRef.off(); usrAdminRef = null; listaUsr = {}; }
@@ -376,7 +392,7 @@ function perfil(u) {
           if (fbRef) fbRef.off();
           fbRef = null; listo = false; mostrarPendiente();
         }
-      }, () => mostrarPendiente());
+      }, e => { paso = 'perfil: ' + (e && e.code ? e.code : 'error'); mostrarError(); });
     });
 }
 function mostrarPendiente() {
@@ -442,8 +458,8 @@ function escuchar() {
       entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
       ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
     });
-    listo = true; $('#nav').style.display = ''; render();
-  }, () => { fbRef = null; listo = false; mostrarPendiente(); });
+    listo = true; clearTimeout(timer); $('#nav').style.display = ''; render();
+  }, e => { fbRef = null; listo = false; paso = 'negocio: ' + (e && e.code ? e.code : 'error'); mostrarError(); });
 }
 
 // ===== Login y cuenta =====
