@@ -20,6 +20,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Costo por rollo = costo por kilo ÷ rollos por kilo. Ganancia por rollo = precio − costo por rollo.
 - Cada venta guarda su costo y ganancia en ese momento, así los cambios de precio no alteran el historial.
 - Ganancia del día y del mes = suma de las ganancias de las ventas.
+- Rollos por kilo se puede dejar vacío al crear el producto y se edita después o en cada ingreso. Sin ese dato no se puede vender el producto.
 
 ## Cómo trabajo (para la IA)
 - Programo desde el celular con Termux. Dar el código en bloques para copiar y pegar con cat > archivo << 'EOF'.
@@ -34,6 +35,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Ganancia del día (Inicio) y del mes (Ganancias, con día por día y por producto)
 - [x] Alerta de stock bajo
 - [x] Respaldo: descargar y restaurar JSON
+- [x] Precio, rollos por kilo y costo editables por producto y en cada ingreso de kilos
 
 ## Pendiente
 - [ ] Definir los rollos por kilo reales de cada producto

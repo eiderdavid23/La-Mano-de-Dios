@@ -72,7 +72,7 @@ function vStock() {
   return '<h2>Inventario</h2><button class="add" onclick="formProducto()">＋ Nuevo producto</button>' +
     (db.productos.length ? db.productos.map(p =>
       '<div class="item ' + (p.stock <= p.minimo ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
-      '<div class="meta">' + p.unidadesRollo + ' unid. por rollo · ≈ ' + Math.floor(p.stock * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo</div></div>' +
+      '<div class="meta">' + p.unidadesRollo + ' unid. por rollo · ≈ ' + Math.floor(p.stock * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' + (p.rollosPorKilo > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir rollos por kilo</b>') + '</div></div>' +
       '<span class="pill ' + (p.stock <= p.minimo ? 'low' : '') + '">' + fmt(p.stock) + ' rollos</span></div>' +
       '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
     ).join('') : '<div class="empty">Aún no hay productos</div>');
@@ -83,7 +83,7 @@ function formProducto(id) {
   modal('<h3>' + (id ? 'Editar producto' : 'Nuevo producto') + '</h3>' +
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
     '<label>Unidades por rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + p.unidadesRollo + '">' +
-    '<label>Rollos que salen de 1 kilo</label><input id="f-rpk" type="number" inputmode="decimal" value="' + p.rollosPorKilo + '" placeholder="Ej: 30"><div class="hint">Con esto se convierten los kilos a rollos</div>' +
+    '<label>Rollos que salen de 1 kilo</label><input id="f-rpk" type="number" inputmode="decimal" value="' + p.rollosPorKilo + '" placeholder="Ej: 30"><div class="hint">Con esto se convierten los kilos a rollos. Si aún no lo sabes, déjalo vacío y lo defines después con Editar.</div>' +
     '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '">' +
     '<label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo">' +
     '<label>Avisar cuando queden (rollos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimo + '">' +
@@ -94,7 +94,6 @@ function guardarProducto(id) {
   const nombre = $('#f-nombre').value.trim();
   const rpk = num($('#f-rpk').value);
   if (!nombre) return toast('Escribe el nombre');
-  if (rpk <= 0) return toast('Indica cuántos rollos salen de 1 kilo');
   const d = { nombre, unidadesRollo: num($('#f-unid').value) || 1, rollosPorKilo: rpk, precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimo: num($('#f-min').value) };
   if (id) Object.assign(prod(id), d);
   else db.productos.push(Object.assign({ id: uid(), stock: num($('#f-stock').value) }, d));
@@ -110,21 +109,24 @@ function borrarProducto(id) {
 // ===== Ingreso por kilos =====
 function formIngreso(id) {
   const p = prod(id);
-  modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">1 kilo = ' + fmt(p.rollosPorKilo) + ' rollos</div>' +
+  modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Puedes cambiar estos datos en cada ingreso</div>' +
     '<label>Kilos que llegaron</label><input id="i-kilos" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
+    '<label>Rollos que salen de 1 kilo</label><input id="i-rpk" type="number" inputmode="decimal" value="' + (p.rollosPorKilo || '') + '" placeholder="Ej: 30" oninput="prevIngreso(\'' + id + '\')">' +
     '<label>Costo por kilo ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '">' +
     '<div class="preview" id="i-prev">= 0 rollos</div>' +
     '<button class="btn main full" onclick="confirmarIngreso(\'' + id + '\')">Agregar al stock</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
 }
 function prevIngreso(id) {
-  const r = num($('#i-kilos').value) * prod(id).rollosPorKilo;
+  const r = num($('#i-kilos').value) * num($('#i-rpk').value);
   $('#i-prev').textContent = '= ' + fmt(r) + ' rollos';
 }
 function confirmarIngreso(id) {
   const p = prod(id), kilos = num($('#i-kilos').value);
+  const rpk = num($('#i-rpk').value);
   if (kilos <= 0) return toast('Escribe los kilos');
-  const rollos = kilos * p.rollosPorKilo, costo = num($('#i-costo').value);
-  p.stock += rollos; p.costoKilo = costo;
+  if (rpk <= 0) return toast('Escribe cuántos rollos salen de 1 kilo');
+  const rollos = kilos * rpk, costo = num($('#i-costo').value);
+  p.stock += rollos; p.costoKilo = costo; p.rollosPorKilo = rpk;
   db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, kilos, rollos, costoKilo: costo });
   guardar(); cerrarModal(); render(); toast('+' + fmt(rollos) + ' rollos ✅');
 }
@@ -138,7 +140,7 @@ function vVender() {
   return '<h2>Registrar venta</h2><div class="chips">' + db.productos.map(x => '<button class="chip ' + (x.id === vSel ? 'on' : '') + '" onclick="selProd(\'' + x.id + '\')">' + esc(x.nombre) + '</button>').join('') + '</div>' +
     '<div class="bubble"><div class="meta" style="text-align:center">Disponible: <b>' + fmt(p.stock) + ' rollos</b> · ' + money(p.precio) + ' c/u</div>' +
     '<div class="step"><button onclick="cambiarQty(-1)">−</button><input id="v-qty" type="number" inputmode="decimal" value="' + vQty + '" onchange="setQty(this.value)"><button onclick="cambiarQty(1)">+</button></div>' +
-    '<div class="total"><b>' + money(total) + '</b><span class="pos">Ganancia: ' + money(gan) + '</span></div>' +
+    '<div class="total"><b>' + money(total) + '</b><span class="pos">' + (p.rollosPorKilo > 0 ? 'Ganancia: ' + money(gan) : 'Falta definir rollos por kilo') + '</span></div>' +
     '<button class="btn main full" onclick="registrarVenta()">Registrar venta</button></div>' +
     '<h2 style="margin-top:22px">Ventas de hoy</h2>' +
     (hoyV.length ? hoyV.slice().reverse().map(v => '<div class="item"><div class="row"><div><div class="name">' + esc(v.nombre) + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · gana ' + money(v.ganancia) + '</div></div><button class="btn del" onclick="borrarVenta(\'' + v.id + '\')">Deshacer</button></div></div>').join('') : '<div class="empty">Sin ventas hoy</div>');
@@ -148,6 +150,7 @@ function cambiarQty(d) { vQty = Math.max(1, Math.round((vQty + d) * 100) / 100);
 function setQty(v) { vQty = Math.max(1, num(v) || 1); render(); }
 function registrarVenta() {
   const p = prod(vSel);
+  if (!(p.rollosPorKilo > 0)) return toast('Primero define los rollos por kilo (Stock → Editar)');
   if (vQty > p.stock) return toast('Solo hay ' + fmt(p.stock) + ' rollos en stock');
   const costo = costoRollo(p);
   db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, rollos: vQty, precio: p.precio, costo, total: vQty * p.precio, ganancia: vQty * (p.precio - costo) });
