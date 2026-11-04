@@ -58,6 +58,9 @@ const rollosDisp = p => gpr(p) > 0 ? Math.floor(p.stockG / gpr(p) + 1e-9) : 0;
 const bajo = p => p.stockG <= p.minimoG;
 const costoRollo = p => gpr(p) > 0 ? p.costoKilo * gpr(p) / 1000 : 0;
 const gananciaRollo = p => p.precio - costoRollo(p);
+const gLbl = n => n < 0 ? 'Pérdida' : 'Ganancia';
+const gCls = n => n < 0 ? 'neg' : 'pos';
+const gHero = n => n < 0 ? 'loss' : n > 0 ? 'gain' : '';
 function nombreMes(ym) {
   const [y, m] = ym.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
@@ -113,9 +116,9 @@ function render() {
 function vInicio() {
   const vh = ventasDia(hoy()), vm = ventasMes(hoy().slice(0, 7));
   const bajos = db.productos.filter(p => bajo(p));
-  return '<div class="hero"><small>Ganancia de hoy</small><b>' + money(suma(vh, 'ganancia')) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
+  return '<div class="hero ' + gHero(suma(vh, 'ganancia')) + '"><small>' + gLbl(suma(vh, 'ganancia')) + ' de hoy</small><b>' + money(Math.abs(suma(vh, 'ganancia'))) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
     '<div class="grid">' +
-    '<div class="bubble wide"><small>Ganancia del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="pos">' + money(suma(vm, 'ganancia')) + '</b></div>' +
+    '<div class="bubble wide"><small>' + gLbl(suma(vm, 'ganancia')) + ' del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="' + gCls(suma(vm, 'ganancia')) + '">' + money(Math.abs(suma(vm, 'ganancia'))) + '</b></div>' +
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
@@ -217,7 +220,7 @@ function vVender() {
   const hoyV = ventasDia(hoy());
   return '<h2>¿Qué vendiste?</h2>' + barraFiltro() + '<div id="lista">' + listaVender() + '</div>' +
     '<h2 style="margin-top:22px">Ventas de hoy</h2>' +
-    (hoyV.length ? hoyV.slice().reverse().map(v => '<div class="item"><div class="row"><div><div class="name">' + esc(v.nombre) + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · gana ' + money(v.ganancia) + '</div></div><button class="btn del" onclick="borrarVenta(\'' + v.id + '\')">Deshacer</button></div></div>').join('') : '<div class="empty">Sin ventas hoy</div>');
+    (hoyV.length ? hoyV.slice().reverse().map(v => '<div class="item"><div class="row"><div><div class="name">' + esc(v.nombre) + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · ' + (v.ganancia < 0 ? 'pierde ' : 'gana ') + money(Math.abs(v.ganancia)) + '</div></div><button class="btn del" onclick="borrarVenta(\'' + v.id + '\')">Deshacer</button></div></div>').join('') : '<div class="empty">Sin ventas hoy</div>');
 }
 function listaVender() {
   const l = filtrados();
@@ -238,6 +241,7 @@ function ajustarQty(d, id) { $('#v-qty').value = Math.max(1, Math.round((qtyVent
 function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
+  $('#v-gan').className = q * gananciaRollo(p) < 0 ? 'neg' : 'pos';
   $('#v-g').textContent = gpr(p) > 0 ? q + ' rollos × ' + fmtG(gpr(p)) + ' = se descuentan ' + fmtG(q * gpr(p)) + ' del stock' : '';
   $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir gramos por rollo';
 }
@@ -277,12 +281,12 @@ function vGanancias() {
   const lista = Object.values(prods).sort((a, b) => b.g - a.g);
   const g = suma(vm, 'ganancia');
   return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(mesSel) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
-    '<div class="hero"><small>Ganancia total del mes (todos los productos)</small><b>' + money(g) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
+    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' total del mes (todos los productos)</small><b>' + money(Math.abs(g)) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
     '<h2>Ganancia por producto</h2>' +
     (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">' + fmt(x.r) + ' rollos · ' + money(x.t) + ' vendido</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
       '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin ventas este mes</div>') +
     '<h2 style="margin-top:22px">Día por día</h2>' +
-    (Object.keys(dias).length ? Object.keys(dias).sort().reverse().map(f => '<div class="item"><div class="row"><div><div class="name" style="text-transform:capitalize">' + nombreDia(f) + '</div><div class="meta">' + fmt(dias[f].r) + ' rollos · ' + money(dias[f].t) + ' vendido</div></div><span class="pill">' + money(dias[f].g) + '</span></div></div>').join('') : '<div class="empty">Sin ventas este mes</div>');
+    (Object.keys(dias).length ? Object.keys(dias).sort().reverse().map(f => '<div class="item"><div class="row"><div><div class="name" style="text-transform:capitalize">' + nombreDia(f) + '</div><div class="meta">' + fmt(dias[f].r) + ' rollos · ' + money(dias[f].t) + ' vendido</div></div><span class="pill ' + (dias[f].g < 0 ? 'low' : '') + '">' + money(dias[f].g) + '</span></div></div>').join('') : '<div class="empty">Sin ventas este mes</div>');
 }
 
 // ===== Ajustes / respaldo =====

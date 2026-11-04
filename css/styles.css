@@ -71,3 +71,5 @@ select option{color:#000}
 .tap:active{transform:scale(.98)}
 .pill{text-align:center;line-height:1.25;border-radius:22px}
 .pill small{font-size:.72rem;font-weight:600;opacity:.9}
+.hero.gain{background:linear-gradient(135deg,#047857,#10b981);box-shadow:0 14px 40px rgba(16,185,129,.3)}
+.hero.loss{background:linear-gradient(135deg,#be123c,#fb7185);box-shadow:0 14px 40px rgba(244,63,94,.3)}
