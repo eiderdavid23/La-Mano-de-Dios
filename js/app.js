@@ -310,6 +310,7 @@ function abrirAjustes() {
   modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">' + (NUBE ? 'Sesión: ' + usuarioActual() + '. Tus datos se guardan en la nube. Igual puedes bajar una copia.' : 'Los datos viven en este teléfono. Guarda una copia de vez en cuando.') + '</div>' +
     '<button class="btn main full" onclick="exportar()">⬇️ Descargar copia</button>' +
     '<label>Restaurar copia</label><input type="file" accept=".json" onchange="importar(this)">' +
+    (NUBE && miPerfil && miPerfil.admin ? '<button class="btn full" style="margin-top:14px" onclick="abrirUsuarios()">👥 Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
     (NUBE ? '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' : '') +
     '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
 }
@@ -334,17 +335,78 @@ function importar(inp) {
 }
 
 // ===== Nube (Firebase) =====
+let usrRef = null, usrAdminRef = null, miPerfil = null, listaUsr = {}, modoCrear = false;
+const usuarioActual = () => { const u = firebase.auth().currentUser; return u && u.email ? u.email.replace('@manodedios.app', '') : ''; };
 function iniciarNube() {
   firebase.initializeApp(firebaseConfig);
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
-    if (u) { $('#nav').style.display = ''; escuchar(); }
-    else { desuscribir(); mostrarLogin(); }
+    desuscribir();
+    if (u) perfil(u); else mostrarLogin();
   });
 }
-function desuscribir() { if (fbRef) fbRef.off(); fbRef = null; listo = false; }
+function desuscribir() {
+  if (fbRef) fbRef.off();
+  if (usrRef) usrRef.off();
+  if (usrAdminRef) usrAdminRef.off();
+  fbRef = usrRef = usrAdminRef = null; listo = false; miPerfil = null; listaUsr = {};
+}
+// El primer usuario queda como administrador; los demás quedan en espera
+function perfil(u) {
+  const nombre = usuarioActual();
+  usrRef = firebase.database().ref('usuarios/' + u.uid);
+  usrRef.once('value')
+    .then(s => s.exists() ? null : usrRef.set({ nombre, aprobado: true, admin: true }).catch(() => usrRef.set({ nombre, aprobado: false })))
+    .catch(() => {})
+    .then(() => {
+      if (!usrRef) return;
+      usrRef.on('value', s => {
+        miPerfil = s.val();
+        if (miPerfil && miPerfil.aprobado === true) {
+          if (!fbRef) escuchar();
+          if (miPerfil.admin === true) vigilarUsuarios();
+        } else {
+          if (fbRef) fbRef.off();
+          fbRef = null; listo = false; mostrarPendiente();
+        }
+      }, () => mostrarPendiente());
+    });
+}
+function mostrarPendiente() {
+  $('#nav').style.display = 'none';
+  $('#app').innerHTML = '<div class="fade"><h2>Cuenta en espera ⏳</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Tu cuenta (' + esc(usuarioActual()) + ') ya está creada. Pídele al administrador que te apruebe; esta pantalla se abre sola cuando lo haga.</div><button class="btn del full" onclick="salir()">Cerrar sesión</button></div></div>';
+}
+// ===== Usuarios (solo administrador) =====
+function vigilarUsuarios() {
+  if (usrAdminRef) return;
+  usrAdminRef = firebase.database().ref('usuarios');
+  usrAdminRef.on('value', s => {
+    listaUsr = s.val() || {};
+    const el = $('#usr-lista');
+    if (el && $('#modal').classList.contains('show')) el.innerHTML = htmlUsuarios();
+  }, () => {});
+}
+const pendientes = () => Object.values(listaUsr).filter(x => x && x.aprobado !== true).length;
+function htmlUsuarios() {
+  const ids = Object.keys(listaUsr).sort((a, b) => (listaUsr[a].aprobado ? 1 : 0) - (listaUsr[b].aprobado ? 1 : 0));
+  if (!ids.length) return '<div class="empty">Sin usuarios</div>';
+  return ids.map(id => {
+    const x = listaUsr[id];
+    return '<div class="item"><div class="row"><div><div class="name">' + esc(x.nombre || '(sin nombre)') + (x.admin ? ' 👑' : '') + '</div><div class="meta">' + (x.aprobado ? 'Con acceso' : '⏳ Esperando aprobación') + '</div></div>' +
+      (x.admin ? '' : '<button class="btn ' + (x.aprobado ? 'del' : 'main') + '" onclick="aprobar(\'' + id + '\',' + !x.aprobado + ')">' + (x.aprobado ? 'Quitar' : 'Aprobar') + '</button>') + '</div></div>';
+  }).join('');
+}
+function abrirUsuarios() {
+  modal('<h3>Usuarios</h3><div class="sub" style="margin:2px 0 10px">Quien crea una cuenta nueva queda en espera. Apruébala para que vea el negocio.</div><div id="usr-lista">' + htmlUsuarios() + '</div><button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
+}
+function aprobar(id, si) {
+  firebase.database().ref('usuarios/' + id + '/aprobado').set(si).catch(e => toast('No se pudo: ' + e.message));
+}
+
+// ===== Datos en la nube =====
 function escuchar() {
-  desuscribir();
+  if (fbRef) fbRef.off();
+  listo = false;
   fbRef = firebase.database().ref('negocio');
   fbRef.on('value', snap => {
     const v = snap.val() || {};
@@ -353,33 +415,40 @@ function escuchar() {
     if (!listo && vacio && local && local.productos.length && !localStorage.getItem(KEY + '_subido') &&
         confirm('La nube está vacía. ¿Subir los datos guardados en este teléfono?')) {
       db = local; listo = true; guardar();
-      localStorage.setItem(KEY + '_subido', '1'); render(); return;
+      localStorage.setItem(KEY + '_subido', '1'); $('#nav').style.display = ''; render(); return;
     }
     db = migrar({
       productos: Object.values(remoto.productos).map(x => Object.assign({}, x)),
       entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
       ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
     });
-    listo = true; render();
-  }, () => { toast('Este usuario no tiene permiso'); firebase.auth().signOut(); });
+    listo = true; $('#nav').style.display = ''; render();
+  }, () => { fbRef = null; listo = false; mostrarPendiente(); });
 }
+
+// ===== Login y cuenta =====
 function mostrarLogin() {
   $('#nav').style.display = 'none';
-  $('#app').innerHTML = '<div class="fade"><h2>Iniciar sesión</h2><div class="bubble">' +
+  const c = modoCrear, enter = ' onkeydown="if(event.key===\'Enter\')entrar()"';
+  $('#app').innerHTML = '<div class="fade"><h2>' + (c ? 'Crear cuenta' : 'Iniciar sesión') + '</h2><div class="bubble">' +
     '<label>Usuario</label><input id="l-mail" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="Ej: rodrigo">' +
-    '<label>Contraseña</label><input id="l-pass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')entrar()">' +
-    '<button class="btn main full" style="margin-top:16px" onclick="entrar()">Entrar</button></div></div>';
+    '<label>Contraseña</label><input id="l-pass" type="password" autocomplete="' + (c ? 'new-password' : 'current-password') + '"' + (c ? '' : enter) + '>' +
+    (c ? '<label>Repetir contraseña</label><input id="l-pass2" type="password" autocomplete="new-password"' + enter + '>' : '') +
+    '<button class="btn main full" style="margin-top:16px" onclick="entrar()">' + (c ? 'Crear cuenta' : 'Entrar') + '</button>' +
+    '<button class="btn full" style="margin-top:10px" onclick="cambiarModo()">' + (c ? 'Ya tengo cuenta' : 'Crear cuenta nueva') + '</button></div></div>';
 }
+function cambiarModo() { modoCrear = !modoCrear; mostrarLogin(); }
 function entrar() {
-  const u = $('#l-mail').value.trim().toLowerCase().replace(/\s+/g, ''), c = $('#l-pass').value, m = u.includes('@') ? u : u + '@manodedios.app';
+  const u = $('#l-mail').value.trim().toLowerCase().replace(/\s+/g, ''), c = $('#l-pass').value;
   if (!u || !c) return toast('Escribe usuario y contraseña');
-  firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Usuario o contraseña incorrectos'));
+  if (!/^[a-z0-9._-]+$/.test(u)) return toast('El usuario solo puede tener letras y números');
+  const m = u + '@manodedios.app';
+  if (!modoCrear) return firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Usuario o contraseña incorrectos'));
+  if (c.length < 6) return toast('La contraseña debe tener mínimo 6 caracteres');
+  if (c !== $('#l-pass2').value) return toast('Las contraseñas no coinciden');
+  firebase.auth().createUserWithEmailAndPassword(m, c).catch(e => toast(e.code === 'auth/email-already-in-use' ? 'Ese usuario ya existe, elige otro' : 'No se pudo crear: ' + e.message));
 }
-function usuarioActual() {
-  const u = firebase.auth().currentUser;
-  return u && u.email ? u.email.replace('@manodedios.app', '') : '';
-}
-function salir() { cerrarModal(); firebase.auth().signOut(); }
+function salir() { modoCrear = false; cerrarModal(); firebase.auth().signOut(); }
 
 function iniciar() {
   if (!NUBE) { render(); return; }

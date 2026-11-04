@@ -28,7 +28,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 
 ## Firebase
 - Realtime Database, nodo "negocio" con productos, entradas y ventas (cada registro guardado por su id).
-- Login con USUARIO y contraseña (sin correo real): la app agrega @manodedios.app al usuario para Firebase Authentication (correo/contraseña). La sesión queda guardada en el teléfono, no vuelve a pedir login hasta cerrar sesión. Los usuarios se crean a mano en la consola de Firebase con el correo usuario@manodedios.app.
+- Login con USUARIO y contraseña (sin correo real): la app agrega @manodedios.app para Firebase Authentication. La sesión queda guardada en el teléfono. Cualquiera puede crear cuenta en la pantalla de login; queda en espera hasta que el administrador la apruebe en ⚙️ → Usuarios. La primera cuenta creada es la administradora. Datos en el nodo "usuarios" (nombre, aprobado, admin) y las reglas usan ese nodo.
 - Reglas: solo los UID autorizados leen y escriben (el repo es público, no se deja abierto a cualquiera con sesión).
 - La configuración (pública) va en js/firebase-config.js. Si ese archivo está vacío, la app funciona solo en el teléfono (localStorage).
 - Con la nube vacía, al primer ingreso ofrece subir los datos guardados en el teléfono.
