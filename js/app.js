@@ -104,11 +104,21 @@ function listaStock() {
   ).join('');
 }
 
+function opcionesCat(sel) {
+  const lista = ['Aliños', 'Salsas', 'Otro'];
+  if (sel && !lista.includes(sel)) lista.splice(2, 0, sel);
+  return lista.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+}
+function opcionesCat(sel) {
+  const lista = ['Aliños', 'Salsas', 'Otro'];
+  if (sel && !lista.includes(sel)) lista.splice(2, 0, sel);
+  return lista.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+}
 function formProducto(id) {
   const p = id ? prod(id) : { nombre: '', categoria: '', unidadesRollo: 14, rollosPorKilo: '', precio: 2000, costoKilo: '', minimo: 5, stock: 0 };
   modal('<h3>' + (id ? 'Editar producto' : 'Nuevo producto') + '</h3>' +
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
-    '<label>Categoría</label><input id="f-cat" list="cats" value="' + esc(p.categoria || '') + '" placeholder="Ej: Aliños, Salsas"><datalist id="cats">' + categorias().map(c => '<option value="' + esc(c) + '">').join('') + '</datalist>' +
+    '<label>Categoría</label><select id="f-cat">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades por rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + p.unidadesRollo + '">' +
     '<label>Rollos que salen de 1 kilo</label><input id="f-rpk" type="number" inputmode="decimal" value="' + p.rollosPorKilo + '" placeholder="Ej: 30"><div class="hint">Con esto se convierten los kilos a rollos. Si aún no lo sabes, déjalo vacío y lo defines después con Editar.</div>' +
     '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '">' +

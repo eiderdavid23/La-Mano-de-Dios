@@ -39,6 +39,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Precio, rollos por kilo y costo editables por producto y en cada ingreso de kilos
 - [x] Categorías, filtro y buscador en Stock y Vender
 - [x] Nombre de la plataforma: Condimentos la Mano de Dios
+- [x] Categoría con desplegable: Aliños, Salsas, Otro
 - [x] Ganancias: total por producto y total de todos los productos al mes
 
 ## Pendiente
