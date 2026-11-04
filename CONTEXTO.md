@@ -1,4 +1,4 @@
-# CONTEXTO DEL PROYECTO — Control de Rollos
+# CONTEXTO DEL PROYECTO — Condimentos la Mano de Dios
 
 > Para la IA: lee esto completo antes de cambiar código.
 > Para mí: en un chat nuevo, pego este archivo y digo qué quiero cambiar.
@@ -38,6 +38,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Respaldo: descargar y restaurar JSON
 - [x] Precio, rollos por kilo y costo editables por producto y en cada ingreso de kilos
 - [x] Categorías, filtro y buscador en Stock y Vender
+- [x] Nombre de la plataforma: Condimentos la Mano de Dios
 - [x] Ganancias: total por producto y total de todos los productos al mes
 
 ## Pendiente
