@@ -69,3 +69,5 @@ select option{color:#000}
 .tag{display:inline-block;padding:2px 9px;border-radius:999px;background:rgba(139,92,246,.2);color:#c4b5fd;font-size:.68rem;font-weight:700}
 .tap{cursor:pointer}
 .tap:active{transform:scale(.98)}
+.pill{text-align:center;line-height:1.25;border-radius:22px}
+.pill small{font-size:.72rem;font-weight:600;opacity:.9}

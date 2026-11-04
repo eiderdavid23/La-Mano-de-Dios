@@ -119,7 +119,7 @@ function vInicio() {
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>⚠️ Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '</span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>⚠️ Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en 📦 Stock</div>' : '');
 }
 
@@ -136,7 +136,7 @@ function listaStock() {
     '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' +
     (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Alcanza para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
     (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
-    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '</span></div>' +
+    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
     '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
 }
@@ -222,7 +222,7 @@ function vVender() {
 function listaVender() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '</span></div></div>').join('');
+  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('');
 }
 function formVenta(id) {
   const p = prod(id);
