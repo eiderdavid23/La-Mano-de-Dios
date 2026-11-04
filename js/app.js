@@ -138,7 +138,7 @@ function listaStock() {
     '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
     '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' +
     (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Alcanza para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
-    (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
+    (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> (' + fmt(costoRollo(p) > 0 ? gananciaRollo(p) / costoRollo(p) * 100 : 0) + '%) por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
     '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
     '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
@@ -155,13 +155,29 @@ function formProducto(id) {
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
     '<label>Categoría</label><select id="f-cat">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades por rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + p.unidadesRollo + '">' +
-    '<label>Gramos que pesa 1 rollo</label><input id="f-gpr" type="number" inputmode="decimal" value="' + p.gramosPorRollo + '" placeholder="Ej: 33" oninput="hintGr()"><div class="hint" id="f-hint"></div>' +
-    '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '">' +
-    '<label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo">' +
+    '<label>Gramos que pesa 1 rollo</label><input id="f-gpr" type="number" inputmode="decimal" value="' + p.gramosPorRollo + '" placeholder="Ej: 33" oninput="hintGr();desdePrecio()"><div class="hint" id="f-hint"></div>' +
+    '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '" oninput="desdePrecio()">' +
+    '<label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo" oninput="desdePrecio()">' +
+    '<label>% de ganancia sobre el costo</label><input id="f-pct" type="number" inputmode="decimal" placeholder="Ej: 40" oninput="desdePct()"><div class="hint" id="f-pcthint"></div>' +
     '<label>Avisar cuando queden (gramos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimoG + '">' +
     '<label>' + (id ? 'Stock actual' : 'Stock inicial') + ' (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.stockG || 0) + '">' +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
-  hintGr();
+  hintGr(); desdePrecio();
+}
+const costoForm = () => num($('#f-costo').value) * num($('#f-gpr').value) / 1000;
+function desdePct() {
+  const c = costoForm(), t = $('#f-pct').value;
+  if (c > 0 && t !== '') $('#f-precio').value = Math.round(c * (1 + num(t) / 100) / 50) * 50;
+  infoPct();
+}
+function desdePrecio() {
+  const c = costoForm(), pr = num($('#f-precio').value);
+  $('#f-pct').value = c > 0 ? Math.round((pr - c) / c * 1000) / 10 : '';
+  infoPct();
+}
+function infoPct() {
+  const c = costoForm(), pr = num($('#f-precio').value);
+  $('#f-pcthint').textContent = c > 0 ? 'Te cuesta ' + money(c) + ' por rollo · con este precio ganas ' + money(pr - c) + ' por rollo (precio redondeado a $50)' : 'Escribe el costo por kilo y los gramos por rollo para calcular.';
 }
 function hintGr() {
   const g = num($('#f-gpr').value);
