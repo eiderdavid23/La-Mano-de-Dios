@@ -5,12 +5,30 @@ let db = cargar();
 let vista = 'inicio';
 let mesSel = hoy().slice(0, 7);
 let fCat = 'Todas', fBus = '';
+const NUBE = typeof firebase !== 'undefined' && typeof firebaseConfig !== 'undefined' && !!firebaseConfig.apiKey;
+let local = null, fbRef = null, listo = !NUBE;
+const remoto = { productos: {}, entradas: {}, ventas: {} };
+const COLS = ['productos', 'entradas', 'ventas'];
+const est = o => o ? JSON.stringify(o, Object.keys(o).sort()) : 'null';
 
 function cargar() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.productos) return d; } catch (e) {}
   return { productos: [], entradas: [], ventas: [] };
 }
-function guardar() { localStorage.setItem(KEY, JSON.stringify(db)); }
+function guardar() {
+  if (!NUBE) { localStorage.setItem(KEY, JSON.stringify(db)); return; }
+  if (!listo || !fbRef) return;
+  const upd = {};
+  COLS.forEach(c => {
+    const actual = {};
+    db[c].forEach(x => { actual[x.id] = x; });
+    Object.keys(actual).forEach(id => {
+      if (est(actual[id]) !== est(remoto[c][id])) upd[c + '/' + id] = JSON.parse(JSON.stringify(actual[id]));
+    });
+    Object.keys(remoto[c]).forEach(id => { if (!actual[id]) upd[c + '/' + id] = null; });
+  });
+  if (Object.keys(upd).length) fbRef.update(upd).catch(e => toast('No se pudo guardar: ' + e.message));
+}
 
 // ===== Utilidades =====
 function hoy() { const d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
@@ -67,6 +85,7 @@ function setBus(v) { fBus = v; $('#lista').innerHTML = vista === 'stock' ? lista
 const TABS = [['inicio', '🏠', 'Inicio'], ['stock', '📦', 'Stock'], ['vender', '🛒', 'Vender'], ['ganancias', '💰', 'Ganancias']];
 function ir(v) { vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0); }
 function render() {
+  if (NUBE && !listo) { $('#app').innerHTML = '<div class="empty">Cargando…</div>'; return; }
   $('#fecha').textContent = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#nav').innerHTML = TABS.map(t => '<button class="' + (vista === t[0] ? 'on' : '') + '" onclick="ir(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] + '</button>').join('');
   const v = { inicio: vInicio, stock: vStock, vender: vVender, ganancias: vGanancias }[vista];
@@ -240,9 +259,10 @@ function vGanancias() {
 
 // ===== Ajustes / respaldo =====
 function abrirAjustes() {
-  modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">Los datos viven en este teléfono. Guarda una copia de vez en cuando.</div>' +
+  modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">' + (NUBE ? 'Tus datos se guardan en la nube. Igual puedes bajar una copia.' : 'Los datos viven en este teléfono. Guarda una copia de vez en cuando.') + '</div>' +
     '<button class="btn main full" onclick="exportar()">⬇️ Descargar copia</button>' +
     '<label>Restaurar copia</label><input type="file" accept=".json" onchange="importar(this)">' +
+    (NUBE ? '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' : '') +
     '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
 }
 function exportar() {
@@ -265,4 +285,52 @@ function importar(inp) {
   r.readAsText(f);
 }
 
-render();
+// ===== Nube (Firebase) =====
+function iniciarNube() {
+  firebase.initializeApp(firebaseConfig);
+  firebase.auth().onAuthStateChanged(u => {
+    if (u) { $('#nav').style.display = ''; escuchar(); }
+    else { desuscribir(); mostrarLogin(); }
+  });
+}
+function desuscribir() { if (fbRef) fbRef.off(); fbRef = null; listo = false; }
+function escuchar() {
+  desuscribir();
+  fbRef = firebase.database().ref('negocio');
+  fbRef.on('value', snap => {
+    const v = snap.val() || {};
+    COLS.forEach(c => { remoto[c] = v[c] || {}; });
+    const vacio = !Object.keys(remoto.productos).length;
+    if (!listo && vacio && local && local.productos.length && !localStorage.getItem(KEY + '_subido') &&
+        confirm('La nube está vacía. ¿Subir los datos guardados en este teléfono?')) {
+      db = local; listo = true; guardar();
+      localStorage.setItem(KEY + '_subido', '1'); render(); return;
+    }
+    db = {
+      productos: Object.values(remoto.productos).map(x => Object.assign({}, x)),
+      entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
+      ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
+    };
+    listo = true; render();
+  }, () => { toast('Este usuario no tiene permiso'); firebase.auth().signOut(); });
+}
+function mostrarLogin() {
+  $('#nav').style.display = 'none';
+  $('#app').innerHTML = '<div class="fade"><h2>Iniciar sesión</h2><div class="bubble">' +
+    '<label>Correo</label><input id="l-mail" type="email" autocomplete="username">' +
+    '<label>Contraseña</label><input id="l-pass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')entrar()">' +
+    '<button class="btn main full" style="margin-top:16px" onclick="entrar()">Entrar</button></div></div>';
+}
+function entrar() {
+  const m = $('#l-mail').value.trim(), c = $('#l-pass').value;
+  if (!m || !c) return toast('Escribe correo y contraseña');
+  firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Correo o contraseña incorrectos'));
+}
+function salir() { cerrarModal(); firebase.auth().signOut(); }
+
+function iniciar() {
+  if (!NUBE) { render(); return; }
+  local = db; db = { productos: [], entradas: [], ventas: [] };
+  render(); iniciarNube();
+}
+iniciar();

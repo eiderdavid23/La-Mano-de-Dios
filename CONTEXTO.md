@@ -23,12 +23,20 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Rollos por kilo se puede dejar vacío al crear el producto y se edita después o en cada ingreso. Sin ese dato no se puede vender el producto.
 - Cada producto tiene categoría (ej. Aliños, Salsas). En Stock y Vender se puede filtrar por categoría y buscar por nombre. En Vender salen todos los productos y se toca uno para registrar la venta.
 
+## Firebase
+- Realtime Database, nodo "negocio" con productos, entradas y ventas (cada registro guardado por su id).
+- Login con correo y contraseña (Authentication). Los usuarios se crean a mano en la consola de Firebase.
+- Reglas: solo los UID autorizados leen y escriben (el repo es público, no se deja abierto a cualquiera con sesión).
+- La configuración (pública) va en js/firebase-config.js. Si ese archivo está vacío, la app funciona solo en el teléfono (localStorage).
+- Con la nube vacía, al primer ingreso ofrece subir los datos guardados en el teléfono.
+
 ## Cómo trabajo (para la IA)
 - Programo desde el celular con Termux. Dar el código en bloques para copiar y pegar con cat > archivo << 'EOF'.
 - Después de cada cambio: git add -A && git commit -m "mensaje" && git push
 - Respuestas cortas, en español.
 
 ## Hecho
+- [x] Código de Firebase (Realtime Database + login por correo) listo
 - [x] Diseño base oscuro con burbujas y barra inferior
 - [x] Productos: crear, editar, borrar
 - [x] Ingreso por kilos con conversión automática a rollos
