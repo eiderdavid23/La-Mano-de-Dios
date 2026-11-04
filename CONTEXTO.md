@@ -21,6 +21,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Cada venta guarda su costo y ganancia en ese momento, así los cambios de precio no alteran el historial.
 - Ganancia del día y del mes = suma de las ganancias de las ventas.
 - Rollos por kilo se puede dejar vacío al crear el producto y se edita después o en cada ingreso. Sin ese dato no se puede vender el producto.
+- Cada producto tiene categoría (ej. Aliños, Salsas). En Stock y Vender se puede filtrar por categoría y buscar por nombre. En Vender salen todos los productos y se toca uno para registrar la venta.
 
 ## Cómo trabajo (para la IA)
 - Programo desde el celular con Termux. Dar el código en bloques para copiar y pegar con cat > archivo << 'EOF'.
@@ -36,9 +37,12 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Alerta de stock bajo
 - [x] Respaldo: descargar y restaurar JSON
 - [x] Precio, rollos por kilo y costo editables por producto y en cada ingreso de kilos
+- [x] Categorías, filtro y buscador en Stock y Vender
+- [x] Ganancias: total por producto y total de todos los productos al mes
 
 ## Pendiente
 - [ ] Definir los rollos por kilo reales de cada producto
+- [ ] Confirmar cómo se venden las salsas (¿también por rollos o por otra unidad?)
 - [ ] Login y usuarios (empleados)
 - [ ] Guardar datos en la nube (Firebase) para usar en varios celulares
 - [ ] Gastos del mes (restar a la ganancia)

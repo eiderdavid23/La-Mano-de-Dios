@@ -66,3 +66,6 @@ select option{color:#000}
 .sheet h3{font-size:1.1rem;font-weight:800;margin-bottom:4px}
 .toast{position:fixed;top:calc(env(safe-area-inset-top) + 14px);left:50%;transform:translateX(-50%) translateY(-120px);background:#1e293b;border:1px solid var(--line);padding:12px 20px;border-radius:999px;font-weight:700;font-size:.85rem;z-index:200;transition:transform .3s;max-width:90%;text-align:center}
 .toast.show{transform:translateX(-50%) translateY(0)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;background:rgba(139,92,246,.2);color:#c4b5fd;font-size:.68rem;font-weight:700}
+.tap{cursor:pointer}
+.tap:active{transform:scale(.98)}
