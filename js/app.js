@@ -105,7 +105,7 @@ function setBus(v) { fBus = v; $('#lista').innerHTML = vista === 'stock' ? lista
 const TABS = [['inicio', '🏠', 'Inicio'], ['stock', '📦', 'Stock'], ['vender', '🛒', 'Vender'], ['ganancias', '💰', 'Ganancias']];
 function ir(v) { vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0); }
 function render() {
-  if (NUBE && !listo) { $('#app').innerHTML = '<div class="empty">Cargando…</div>'; return; }
+  if (NUBE && !listo) { $('#app').innerHTML = '<div class="empty">Cargando… [v4 ' + paso + ']</div>'; return; }
   $('#fecha').textContent = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#nav').innerHTML = TABS.map(t => '<button class="' + (vista === t[0] ? 'on' : '') + '" onclick="ir(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] + '</button>').join('');
   const v = { inicio: vInicio, stock: vStock, vender: vVender, ganancias: vGanancias }[vista];
@@ -346,6 +346,7 @@ const usuarioActual = () => { const u = firebase.auth().currentUser; return u &&
 function iniciarNube() {
   try { firebase.database.INTERNAL.forceLongPolling(); } catch (e) {}
   firebase.initializeApp(firebaseConfig);
+  paso = 'esperando sesión'; vigilar();
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
     desuscribir();
@@ -355,7 +356,7 @@ function iniciarNube() {
 let paso = '', timer = null;
 function vigilar() {
   clearTimeout(timer);
-  timer = setTimeout(() => { if (!listo && firebase.auth().currentUser) mostrarError(); }, 8000);
+  timer = setTimeout(() => { if (!listo) mostrarError(); }, 8000);
 }
 function mostrarError() {
   $('#nav').style.display = 'none';
@@ -492,4 +493,6 @@ function iniciar() {
   local = db; db = { productos: [], entradas: [], ventas: [] };
   render(); iniciarNube();
 }
+window.addEventListener('error', e => { if (!listo) { paso = 'error JS: ' + e.message; mostrarError(); } });
+window.addEventListener('unhandledrejection', e => { if (!listo) { paso = 'promesa: ' + (e.reason && (e.reason.code || e.reason.message) || e.reason); mostrarError(); } });
 iniciar();
