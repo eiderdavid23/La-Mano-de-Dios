@@ -307,11 +307,17 @@ function vGanancias() {
 
 // ===== Ajustes / respaldo =====
 function abrirAjustes() {
-  modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">' + (NUBE ? 'Sesión: ' + usuarioActual() + '. Tus datos se guardan en la nube. Igual puedes bajar una copia.' : 'Los datos viven en este teléfono. Guarda una copia de vez en cuando.') + '</div>' +
-    '<button class="btn main full" onclick="exportar()">⬇️ Descargar copia</button>' +
-    '<label>Restaurar copia</label><input type="file" accept=".json" onchange="importar(this)">' +
-    (NUBE && miPerfil && miPerfil.admin ? '<button class="btn full" style="margin-top:14px" onclick="abrirUsuarios()">👥 Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
-    (NUBE ? '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' : '') +
+  if (!NUBE) {
+    modal('<h3>Respaldo</h3><div class="sub" style="margin:2px 0 10px">Los datos viven en este teléfono. Guarda una copia de vez en cuando.</div>' +
+      '<button class="btn main full" onclick="exportar()">⬇️ Descargar copia</button>' +
+      '<label>Restaurar copia</label><input type="file" accept=".json" onchange="importar(this)">' +
+      '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
+    return;
+  }
+  const adm = miPerfil && miPerfil.admin;
+  modal('<h3>Ajustes</h3><div class="sub" style="margin:2px 0 10px">Sesión: ' + esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') + '<br>Tus datos se guardan en la nube automáticamente.</div>' +
+    (adm ? '<button class="btn main full" onclick="abrirUsuarios()">👥 Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
+    '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' +
     '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
 }
 function exportar() {
@@ -365,6 +371,7 @@ function perfil(u) {
         if (miPerfil && miPerfil.aprobado === true) {
           if (!fbRef) escuchar();
           if (miPerfil.admin === true) vigilarUsuarios();
+          else if (usrAdminRef) { usrAdminRef.off(); usrAdminRef = null; listaUsr = {}; }
         } else {
           if (fbRef) fbRef.off();
           fbRef = null; listo = false; mostrarPendiente();
@@ -393,8 +400,21 @@ function htmlUsuarios() {
   return ids.map(id => {
     const x = listaUsr[id];
     return '<div class="item"><div class="row"><div><div class="name">' + esc(x.nombre || '(sin nombre)') + (x.admin ? ' 👑' : '') + '</div><div class="meta">' + (x.aprobado ? 'Con acceso' : '⏳ Esperando aprobación') + '</div></div>' +
-      (x.admin ? '' : '<button class="btn ' + (x.aprobado ? 'del' : 'main') + '" onclick="aprobar(\'' + id + '\',' + !x.aprobado + ')">' + (x.aprobado ? 'Quitar' : 'Aprobar') + '</button>') + '</div></div>';
+      botonesUsr(id, x) + '</div></div>';
   }).join('');
+}
+function botonesUsr(id, x) {
+  if (firebase.auth().currentUser.uid === id) return '';
+  const b = (t, cls, f, v) => '<button class="btn ' + cls + '" onclick="' + f + '(\'' + id + '\',' + v + ')">' + t + '</button>';
+  let h;
+  if (!x.aprobado) h = b('Aprobar', 'main', 'aprobar', true);
+  else if (x.admin) h = b('Quitar admin', '', 'hacerAdmin', false);
+  else h = b('Hacer admin', 'main', 'hacerAdmin', true) + b('Quitar', 'del', 'aprobar', false);
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' + h + '</div>';
+}
+function hacerAdmin(id, si) {
+  if (!confirm(si ? '¿Dar administrador a este usuario? Podrá aprobar y quitar usuarios.' : '¿Quitar administrador a este usuario?')) return;
+  firebase.database().ref('usuarios/' + id + '/admin').set(si).catch(e => toast('No se pudo: ' + e.message));
 }
 function abrirUsuarios() {
   modal('<h3>Usuarios</h3><div class="sub" style="margin:2px 0 10px">Quien crea una cuenta nueva queda en espera. Apruébala para que vea el negocio.</div><div id="usr-lista">' + htmlUsuarios() + '</div><button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
