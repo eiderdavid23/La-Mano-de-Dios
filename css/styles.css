@@ -180,3 +180,10 @@ body.menu-on #drawer{transform:none}
 .hv small{display:block;font-size:.7rem;color:var(--mut);font-weight:600}
 .hv.pos b{color:var(--ok)}
 .hv.neg b{color:var(--bad)}
+
+.upd{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translate(-50%,220%);width:calc(100% - 28px);max-width:420px;display:flex;align-items:center;gap:8px;padding:10px 8px 10px 16px;border-radius:18px;background:var(--card);color:var(--txt);border:1px solid var(--sf);box-shadow:0 14px 30px -10px rgba(0,0,0,.45);z-index:60;transition:transform .55s var(--spring);font-size:.84rem;font-weight:600}
+.upd.show{transform:translate(-50%,0)}
+.upd span{flex:1;line-height:1.25}
+.upd .go{flex:none;display:flex;align-items:center;gap:6px;border:none;border-radius:12px;padding:10px 14px;background:var(--sf);color:#1D1B16;font-family:inherit;font-weight:800;font-size:.82rem;cursor:pointer}
+.upd .x{flex:none;width:32px;height:32px;display:grid;place-items:center;border:none;border-radius:10px;background:none;color:var(--mut);cursor:pointer}
+.upd .ic{width:16px;height:16px}

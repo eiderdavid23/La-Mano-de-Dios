@@ -1033,4 +1033,53 @@ function iniciar() {
 }
 window.addEventListener('error', e => { if (!listo) { paso = 'error JS: ' + e.message; mostrarError(); } });
 window.addEventListener('unhandledrejection', e => { if (!listo) { paso = 'promesa: ' + (e.reason && (e.reason.code || e.reason.message) || e.reason); mostrarError(); } });
+// ===== Aviso de actualización =====
+// La versión de esta app es el ?v= con que index.html cargó app.js.
+// Cada parche cambia ese número en index.html; si el index publicado trae uno mayor, hay actualización.
+const VER_APP = (() => {
+  const s = document.querySelector('script[src*="js/app.js"]');
+  const m = s && /[?&]v=(\d+)/.exec(s.src);
+  return m ? Number(m[1]) : 0;
+})();
+let verCerrada = 0;
+function avisarActualizacion(v) {
+  let el = document.getElementById('upd');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'upd'; el.className = 'upd';
+    el.innerHTML = '<span>Se hizo una actualización reciente</span>' +
+      '<button class="go" onclick="recargarApp()">' + ic('<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/>') + 'Recargar</button>' +
+      '<button class="x" aria-label="Cerrar" onclick="cerrarAvisoUpd()">' + ic('<path d="M6 6l12 12M18 6 6 18"/>') + '</button>';
+    document.body.appendChild(el);
+  }
+  el.dataset.v = v;
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+}
+function cerrarAvisoUpd() {
+  const el = document.getElementById('upd'); if (!el) return;
+  verCerrada = Number(el.dataset.v) || 0; el.classList.remove('show');
+}
+function revisarVersion() {
+  if (!VER_APP || navigator.onLine === false) return;
+  fetch('index.html?c=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : '')
+    .then(t => {
+      const m = /js\/app\.js\?v=(\d+)/.exec(t); const v = m ? Number(m[1]) : 0;
+      if (v > VER_APP && v !== verCerrada) avisarActualizacion(v);
+    })
+    .catch(() => {});
+}
+function recargarApp() {
+  const b = document.querySelector('#upd .go');
+  if (b) { b.disabled = true; b.textContent = 'Actualizando…'; }
+  let hecho = false;
+  const fin = () => { if (hecho) return; hecho = true; location.reload(); };
+  setTimeout(fin, 4000);
+  // Pide el index nuevo saltándose la copia guardada y luego recarga
+  fetch(location.href.split('#')[0], { cache: 'reload' }).catch(() => {}).then(fin);
+}
+setTimeout(revisarVersion, 4000);
+setInterval(revisarVersion, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revisarVersion(); });
+window.addEventListener('online', revisarVersion);
+
 iniciar();
