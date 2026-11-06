@@ -83,8 +83,13 @@ function toast(t) {
   const el = $('#toast'); el.textContent = t; el.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2200);
 }
-function modal(html) { const m = $('#modal'); m.innerHTML = '<div class="sheet">' + html + '</div>'; m.classList.add('show'); }
-function cerrarModal() { $('#modal').classList.remove('show'); }
+function modal(html) { const m = $('#modal'); m.innerHTML = '<div class="sheet">' + html + '</div>'; m.classList.remove('closing'); m.classList.add('show'); }
+function cerrarModal() {
+  const m = $('#modal');
+  if (!m.classList.contains('show') || m.classList.contains('closing')) return;
+  m.classList.add('closing');
+  setTimeout(() => { if (m.classList.contains('closing')) m.classList.remove('show', 'closing'); }, 220);
+}
 
 // ===== Cálculos =====
 const ventasDia = f => db.ventas.filter(v => v.fecha === f);
@@ -105,34 +110,57 @@ function filtrados() {
 function barraFiltro() {
   const cats = ['Todas'].concat(categorias());
   if (!cats.includes(fCat)) fCat = 'Todas';
-  return '<input id="bus" type="search" placeholder="🔍 Buscar producto..." value="' + esc(fBus) + '" oninput="setBus(this.value)" style="margin-bottom:10px">' +
+  return '<input id="bus" type="search" placeholder="Buscar producto…" value="' + esc(fBus) + '" oninput="setBus(this.value)" style="margin-bottom:10px">' +
     '<div class="chips">' + cats.map((c, i) => '<button class="chip ' + (c === fCat ? 'on' : '') + '" onclick="setCat(' + i + ')">' + esc(c) + '</button>').join('') + '</div>';
 }
 function setCat(i) { fCat = ['Todas'].concat(categorias())[i]; render(); }
 function setBus(v) { fBus = v; $('#lista').innerHTML = vista === 'stock' ? listaStock() : listaVender(); }
 
 // ===== Navegación =====
-const TABS = [['inicio', '🏠', 'Inicio'], ['stock', '📦', 'Stock'], ['vender', '🛒', 'Vender'], ['ganancias', '💰', 'Ganancias']];
+const ic = d => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
+const TABS = [
+  ['inicio', ic('<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'), 'Inicio'],
+  ['stock', ic('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>'), 'Stock'],
+  ['vender', ic('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 11.5a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 7H6"/>'), 'Vender'],
+  ['ganancias', ic('<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>'), 'Ganancias']
+];
+let vistaPrev = null;
+// Los números grandes cuentan hacia arriba al cambiar de pantalla
+function animarNumeros(cambio) {
+  if (!cambio || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('[data-n]').forEach(el => {
+    const fin = Number(el.dataset.n), t0 = performance.now();
+    const paso = t => {
+      const k = Math.min(1, (t - t0) / 800);
+      el.textContent = money(fin * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
+  });
+}
 function ir(v) { vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0); }
 function render() {
   if (NUBE && !listo) { $('#app').innerHTML = '<div class="empty">Cargando… [v4 ' + paso + ']</div>'; return; }
   $('#fecha').textContent = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#nav').innerHTML = TABS.map(t => '<button class="' + (vista === t[0] ? 'on' : '') + '" onclick="ir(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] + '</button>').join('');
   const v = { inicio: vInicio, stock: vStock, vender: vVender, ganancias: vGanancias }[vista];
-  $('#app').innerHTML = '<div class="fade">' + v() + '</div>';
+  const cambio = vista !== vistaPrev; vistaPrev = vista;
+  $('#app').innerHTML = '<div class="fade' + (cambio ? '' : ' quiet') + '">' + v() + '</div>';
+  $('#nav').style.setProperty('--i', Math.max(0, TABS.findIndex(t => t[0] === vista)));
+  animarNumeros(cambio);
 }
 
 // ===== Inicio =====
 function vInicio() {
   const vh = ventasDia(hoy()), vm = ventasMes(hoy().slice(0, 7));
   const bajos = db.productos.filter(p => bajo(p));
-  return '<div class="hero ' + gHero(suma(vh, 'ganancia')) + '"><small>' + gLbl(suma(vh, 'ganancia')) + ' de hoy</small><b>' + money(Math.abs(suma(vh, 'ganancia'))) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
+  return '<div class="hero ' + gHero(suma(vh, 'ganancia')) + '"><small>' + gLbl(suma(vh, 'ganancia')) + ' de hoy</small><b data-n="' + Math.abs(suma(vh, 'ganancia')) + '">' + money(Math.abs(suma(vh, 'ganancia'))) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
     '<div class="grid">' +
-    '<div class="bubble wide"><small>' + gLbl(suma(vm, 'ganancia')) + ' del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="' + gCls(suma(vm, 'ganancia')) + '">' + money(Math.abs(suma(vm, 'ganancia'))) + '</b></div>' +
+    '<div class="bubble wide"><small>' + gLbl(suma(vm, 'ganancia')) + ' del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="' + gCls(suma(vm, 'ganancia')) + '" data-n="' + Math.abs(suma(vm, 'ganancia')) + '">' + money(Math.abs(suma(vm, 'ganancia'))) + '</b></div>' +
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>⚠️ Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en 📦 Stock</div>' : '');
 }
 
@@ -268,7 +296,7 @@ function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
   $('#v-gan').className = q * gananciaRollo(p) < 0 ? 'neg' : 'pos';
-  $('#v-g').textContent = gpr(p) > 0 ? q + ' rollos × ' + fmtG(gpr(p)) + ' = se descuentan ' + fmtG(q * gpr(p)) + ' del stock' : '';
+  $('#v-g').textContent = gpr(p) > 0 ? q + (q === 1 ? ' rollo × ' : ' rollos × ') + fmtG(gpr(p)) + ' = se descuentan ' + fmtG(q * gpr(p)) + ' del stock' : '';
   $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir gramos por rollo';
 }
 function registrarVenta(id) {
@@ -280,7 +308,7 @@ function registrarVenta(id) {
   const costo = costoRollo(p);
   db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, gramos: g, precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
   p.stockG = Math.max(0, r2(p.stockG - g));
-  guardar(); cerrarModal(); render(); toast('Venta registrada ✅');
+  guardar(); cerrarModal(); render(); toast('Venta registrada ✅'); if (navigator.vibrate) navigator.vibrate(15);
 }
 function borrarVenta(id) {
   const v = db.ventas.find(x => x.id === id);
@@ -307,12 +335,12 @@ function vGanancias() {
   const lista = Object.values(prods).sort((a, b) => b.g - a.g);
   const g = suma(vm, 'ganancia');
   return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(mesSel) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
-    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' total del mes (todos los productos)</small><b>' + money(Math.abs(g)) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
+    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' total del mes (todos los productos)</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
     '<h2>Ganancia por producto</h2>' +
     (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">' + fmt(x.r) + ' rollos · ' + money(x.t) + ' vendido</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
       '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin ventas este mes</div>') +
     '<h2 style="margin-top:22px">Día por día</h2>' +
-    (Object.keys(dias).length ? Object.keys(dias).sort().reverse().map(f => '<div class="item"><div class="row"><div><div class="name" style="text-transform:capitalize">' + nombreDia(f) + '</div><div class="meta">' + fmt(dias[f].r) + ' rollos · ' + money(dias[f].t) + ' vendido</div></div><span class="pill ' + (dias[f].g < 0 ? 'low' : '') + '">' + money(dias[f].g) + '</span></div></div>').join('') : '<div class="empty">Sin ventas este mes</div>');
+    (Object.keys(dias).length ? Object.keys(dias).sort().reverse().map(f => '<div class="item"><div class="row"><div><div class="name cap">' + nombreDia(f) + '</div><div class="meta">' + fmt(dias[f].r) + ' rollos · ' + money(dias[f].t) + ' vendido</div></div><span class="pill ' + (dias[f].g < 0 ? 'low' : '') + '">' + money(dias[f].g) + '</span></div></div>').join('') : '<div class="empty">Sin ventas este mes</div>');
 }
 
 // ===== Ajustes / respaldo =====
@@ -374,7 +402,7 @@ function mostrarError() {
 }
 function reintentar() {
   desuscribir();
-  $('#app').innerHTML = '<div class="empty">Cargando…</div>';
+  $('#app').innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';
   const u = firebase.auth().currentUser;
   if (u) { paso = 'leyendo perfil'; vigilar(); perfil(u); } else mostrarLogin();
 }
