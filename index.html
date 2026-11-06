@@ -11,13 +11,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=1793927348">
+<link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js">
+<link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js">
+<link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js">
+<link rel="stylesheet" href="css/styles.css?v=1793930047">
 </head>
 <body>
 <div id="splash">
   <svg class="sp-sachet" viewBox="0 0 64 84" aria-hidden="true">
     <defs><clipPath id="spc"><path d="M8 11l4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6V73l-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6z"/></clipPath></defs>
-    <g clip-path="url(#spc)"><rect width="64" height="84" fill="#fff"/><rect class="sp-fill" width="64" height="84" fill="#F4B400"/></g>
+    <g clip-path="url(#spc)"><rect width="64" height="84" fill="#fff"/><rect class="sp-fill" width="64" height="84" fill="#F5C6A0"/></g>
     <path d="M8 11l4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6 4-6 4 6V73l-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6z" fill="none" stroke="#1D1B16" stroke-width="3" stroke-linejoin="round"/>
     <path d="M20 40h24M24 49h16" stroke="#1D1B16" stroke-width="3" stroke-linecap="round" opacity=".85"/>
   </svg>
@@ -29,16 +32,15 @@
     <h1>Condimentos la Mano de Dios</h1>
     <p id="fecha"></p>
   </div>
-  <button class="gear" onclick="abrirAjustes()" aria-label="Ajustes"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-1"/><circle cx="16" cy="6" r="2.2"/><circle cx="10" cy="12" r="2.2"/><circle cx="17.5" cy="18" r="2.2"/></svg></button>
+  <button class="gear" onclick="abrirMenu()" aria-label="Menú"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </header>
 <main id="app"></main>
 <nav class="nav" id="nav"></nav>
+<div id="scrim" onclick="cerrarMenu()"></div>
+<aside id="drawer"></aside>
 <div id="modal" class="overlay" onclick="if(event.target===this)cerrarModal()"></div>
 <div id="toast" class="toast"></div>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="js/firebase-config.js?v=1793927348"></script>
-<script src="js/app.js?v=1793927348"></script>
+<script src="js/firebase-config.js?v=1793930047"></script>
+<script src="js/app.js?v=1793930047"></script>
 </body>
 </html>

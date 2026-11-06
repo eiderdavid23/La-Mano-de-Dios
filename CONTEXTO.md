@@ -63,3 +63,10 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [ ] Guardar datos en la nube (Firebase) para usar en varios celulares
 - [ ] Gastos del mes (restar a la ganancia)
 - [ ] Iconos propios de la app y modo sin internet
+
+## Cambios parche8
+- Botón atrás: cada pantalla, ventana y el menú lateral quedan en el historial. Atrás cierra ventana/menú y luego vuelve a la pantalla anterior.
+- Login rápido: copia de datos en el teléfono (lmd_cache_v1) que se muestra al instante mientras sincroniza con Firebase por detrás (solo consulta mientras tanto). Sin sesión, el login sale de inmediato. Firebase se carga por detrás (cargarFirebase en app.js).
+- Colores: el amarillo pasó a durazno suave (#F5C6A0).
+- Menú lateral (hamburguesa) reemplaza al engranaje: Pedidos, Usuarios (admin), Respaldo (modo local), Cerrar sesión.
+- Pedidos: nodo "pedidos" dentro de "negocio". Un pedido pendiente aparta gramos del stock (disponible = stockG - apartado). Al entregar se crean las ventas (con pedidoId) y se descuenta el stock; la ganancia cuenta el día de la entrega. Deshacer entrega borra esas ventas. Cancelar libera lo apartado.

@@ -4,7 +4,7 @@ function quitarSplash() {
   const s = document.getElementById('splash');
   if (!s || s.dataset.salio) return;
   s.dataset.salio = '1';
-  setTimeout(() => { s.classList.add('out'); setTimeout(() => s.remove(), 600); }, Math.max(0, 900 - (Date.now() - splashT0)));
+  setTimeout(() => { s.classList.add('out'); setTimeout(() => s.remove(), 600); }, Math.max(0, 250 - (Date.now() - splashT0)));
 }
 setTimeout(quitarSplash, 10000);
 
@@ -16,18 +16,24 @@ let db = cargar();
 let vista = 'inicio';
 let mesSel = hoy().slice(0, 7);
 let fCat = 'Todas', fBus = '';
-const NUBE = typeof firebase !== 'undefined' && typeof firebaseConfig !== 'undefined' && !!firebaseConfig.apiKey;
+const NUBE = typeof firebaseConfig !== 'undefined' && !!firebaseConfig.apiKey;
 let local = null, fbRef = null, listo = !NUBE;
-const remoto = { productos: {}, entradas: {}, ventas: {} };
-const COLS = ['productos', 'entradas', 'ventas'];
-const est = o => o ? JSON.stringify(o, Object.keys(o).sort()) : 'null';
+const remoto = { productos: {}, entradas: {}, ventas: {}, pedidos: {} };
+const COLS = ['productos', 'entradas', 'ventas', 'pedidos'];
+const ord = x => Array.isArray(x) ? x.map(ord) : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((a, k) => (a[k] = ord(x[k]), a), {}) : x;
+const est = o => o ? JSON.stringify(ord(o)) : 'null';
+const KEYC = 'lmd_cache_v1';
+function guardarCache() { try { localStorage.setItem(KEYC, JSON.stringify(db)); } catch (e) {} }
+let cacheActiva = false, saltarPop = false, enLogin = false, sinRed = false, menuOn = false;
+const espera = () => { if (cacheActiva && !listo) { toast(sinRed ? 'Sin conexión: por ahora solo puedes consultar' : 'Sincronizando… espera un momento'); return true; } return false; };
 
 function cargar() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.productos) return migrar(d); } catch (e) {}
-  return { productos: [], entradas: [], ventas: [] };
+  return { productos: [], entradas: [], ventas: [], pedidos: [] };
 }
 // Datos viejos (stock en rollos) -> stock en gramos
 function migrar(d) {
+  d.pedidos = d.pedidos || [];
   (d.productos || []).forEach(p => {
     if (p.gramosPorRollo !== undefined) return;
     const g = p.rollosPorKilo > 0 ? 1000 / p.rollosPorKilo : 0;
@@ -41,6 +47,7 @@ function migrar(d) {
 function guardar() {
   if (!NUBE) { localStorage.setItem(KEY, JSON.stringify(db)); return; }
   if (!listo || !fbRef) return;
+  guardarCache();
   const upd = {};
   COLS.forEach(c => {
     const actual = {};
@@ -64,8 +71,11 @@ const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO');
 const prod = id => db.productos.find(p => p.id === id);
 const gpr = p => p.gramosPorRollo || 0;
 const fmtG = g => fmt(g) + ' g';
-const rollosDisp = p => gpr(p) > 0 ? Math.floor(p.stockG / gpr(p) + 1e-9) : 0;
-const bajo = p => p.stockG <= p.minimoG;
+const itemsDe = x => Array.isArray(x.items) ? x.items : Object.values(x.items || {});
+const apartadoG = p => (db.pedidos || []).filter(x => x.estado === 'pendiente').reduce((a, x) => a + itemsDe(x).filter(i => i.productoId === p.id).reduce((b, i) => b + i.gramos, 0), 0);
+const dispG = p => Math.max(0, r2(p.stockG - apartadoG(p)));
+const rollosDisp = p => gpr(p) > 0 ? Math.floor(dispG(p) / gpr(p) + 1e-9) : 0;
+const bajo = p => dispG(p) <= p.minimoG;
 const costoRollo = p => gpr(p) > 0 ? p.costoKilo * gpr(p) / 1000 : 0;
 const gananciaRollo = p => p.precio - costoRollo(p);
 const gLbl = n => n < 0 ? 'Pérdida' : 'Ganancia';
@@ -83,10 +93,15 @@ function toast(t) {
   const el = $('#toast'); el.textContent = t; el.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2200);
 }
-function modal(html) { const m = $('#modal'); m.innerHTML = '<div class="sheet">' + html + '</div>'; m.classList.remove('closing'); m.classList.add('show'); }
+function modal(html) { if (!enHist('m')) hist({ m: 1 }); const m = $('#modal'); m.innerHTML = '<div class="sheet">' + html + '</div>'; m.classList.remove('closing'); m.classList.add('show'); }
 function cerrarModal() {
   const m = $('#modal');
   if (!m.classList.contains('show') || m.classList.contains('closing')) return;
+  if (enHist('m')) { saltarPop = true; history.back(); }
+  cierraModal();
+}
+function cierraModal() {
+  const m = $('#modal');
   m.classList.add('closing');
   setTimeout(() => { if (m.classList.contains('closing')) m.classList.remove('show', 'closing'); }, 220);
 }
@@ -138,15 +153,69 @@ function animarNumeros(cambio) {
     requestAnimationFrame(paso);
   });
 }
-function ir(v) { vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0); }
+const enHist = k => !!(history.state && history.state[k]);
+function hist(x) { try { history.pushState(Object.assign({ v: vista }, x || {}), ''); } catch (e) {} }
+function hist0(v) { try { history.pushState({ v }, ''); } catch (e) {} }
+function ir(v) {
+  if (v !== vista) hist0(v);
+  vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0);
+}
+window.addEventListener('popstate', e => {
+  if (saltarPop) { saltarPop = false; return; }
+  if (menuOn) { cierraMenu(); return; }
+  const m = $('#modal');
+  if (m.classList.contains('show') && !m.classList.contains('closing')) { cierraModal(); return; }
+  if (NUBE && !listo && !cacheActiva) return;
+  const v = e.state && e.state.v;
+  if (v && v !== vista) { vista = v; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0); }
+});
+function abrirMenu() {
+  if (menuOn || (NUBE && !listo && !cacheActiva)) return;
+  $('#drawer').innerHTML = htmlMenu();
+  hist({ d: 1 }); menuOn = true; document.body.classList.add('menu-on');
+}
+function cierraMenu() { menuOn = false; document.body.classList.remove('menu-on'); }
+function cerrarMenu() {
+  if (!menuOn) return;
+  if (enHist('d')) { saltarPop = true; history.back(); }
+  cierraMenu();
+}
+function htmlMenu() {
+  const adm = NUBE && miPerfil && miPerfil.admin;
+  const pend = pendPed().length, esp = adm && pendientes() ? ' (' + pendientes() + ' en espera)' : '';
+  const it = (ico, t, f, extra) => '<button class="mi" onclick="' + f + '"><span>' + ico + '</span>' + t + (extra || '') + '</button>';
+  return '<div class="dh"><b>Condimentos la Mano de Dios</b><small>' + (NUBE ? esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') : 'Datos en este teléfono') + '</small></div>' +
+    it('📋', 'Pedidos', 'menuPedidos()', pend ? '<em>' + pend + '</em>' : '') +
+    (adm ? it('👥', 'Usuarios' + esp, 'menuModal(abrirUsuarios)') : '') +
+    (!NUBE ? it('💾', 'Respaldo', 'menuModal(abrirAjustes)') : '') +
+    (NUBE ? it('🚪', 'Cerrar sesión', 'menuSalir()') : '');
+}
+function menuPedidos() {
+  if (vista === 'pedidos') { cerrarMenu(); return; }
+  cierraMenu();
+  try { history.replaceState({ v: 'pedidos' }, ''); } catch (e) {}
+  vista = 'pedidos'; fCat = 'Todas'; fBus = ''; render(); window.scrollTo(0, 0);
+}
+function menuModal(f) {
+  cierraMenu();
+  try { history.replaceState({ v: vista, m: 1 }, ''); } catch (e) {}
+  f();
+}
+function menuSalir() {
+  cierraMenu();
+  try { history.replaceState({ v: vista }, ''); } catch (e) {}
+  salir();
+}
 function render() {
-  if (NUBE && !listo) { $('#app').innerHTML = '<div class="empty">Cargando… [v4 ' + paso + ']</div>'; return; }
+  if (NUBE && !listo && !cacheActiva) { $('#app').innerHTML = '<div class="empty">Cargando… [v4 ' + paso + ']</div>'; return; }
   $('#fecha').textContent = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#nav').innerHTML = TABS.map(t => '<button class="' + (vista === t[0] ? 'on' : '') + '" onclick="ir(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] + '</button>').join('');
-  const v = { inicio: vInicio, stock: vStock, vender: vVender, ganancias: vGanancias }[vista];
+  if (cacheActiva && !listo) $('#fecha').textContent += ' · sincronizando…';
+  const v = { inicio: vInicio, stock: vStock, vender: vVender, ganancias: vGanancias, pedidos: vPedidos }[vista];
   const cambio = vista !== vistaPrev; vistaPrev = vista;
   $('#app').innerHTML = '<div class="fade' + (cambio ? '' : ' quiet') + '">' + v() + '</div>';
-  $('#nav').style.setProperty('--i', Math.max(0, TABS.findIndex(t => t[0] === vista)));
+  const idx = TABS.findIndex(t => t[0] === vista);
+  $('#nav').style.setProperty('--i', Math.max(0, idx)); $('#nav').classList.toggle('fuera', idx < 0);
   animarNumeros(cambio);
 }
 
@@ -160,7 +229,7 @@ function vInicio() {
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en 📦 Stock</div>' : '');
 }
 
@@ -174,10 +243,10 @@ function listaStock() {
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
   return l.map(p =>
     '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
-    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' +
+    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + (apartadoG(p) > 0 ? '<b>Apartado en pedidos: ' + fmtG(apartadoG(p)) + '</b> (stock físico ' + fmtG(p.stockG) + ')<br>' : '') +
     (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Alcanza para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
     (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> (' + fmt(costoRollo(p) > 0 ? gananciaRollo(p) / costoRollo(p) * 100 : 0) + '%) por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
-    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
+    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
     '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
 }
@@ -188,6 +257,7 @@ function opcionesCat(sel) {
   return lista.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
 }
 function formProducto(id) {
+  if (espera()) return;
   const p = id ? prod(id) : { nombre: '', categoria: '', unidadesRollo: 14, gramosPorRollo: '', precio: 2000, costoKilo: '', minimoG: 500, stockG: 0 };
   modal('<h3>' + (id ? 'Editar producto' : 'Nuevo producto') + '</h3>' +
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
@@ -230,6 +300,8 @@ function guardarProducto(id) {
   guardar(); cerrarModal(); render(); toast('Producto guardado ✅');
 }
 function borrarProducto(id) {
+  if (espera()) return;
+  const pp = prod(id); if (pp && apartadoG(pp) > 0) return toast('Tiene pedidos pendientes: entrégalos o cancélalos primero');
   if (!confirm('¿Borrar este producto? Sus ventas ya registradas se conservan.')) return;
   db.productos = db.productos.filter(p => p.id !== id);
   guardar(); render();
@@ -238,6 +310,7 @@ function borrarProducto(id) {
 // ===== Ingreso por kilos / libras =====
 const gUni = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 function formIngreso(id) {
+  if (espera()) return;
   const p = prod(id);
   modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Se suma al stock en gramos. Puedes cambiar estos datos en cada ingreso</div>' +
     '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos (1000 g)</option><option value="lb">Libras (500 g)</option></select>' +
@@ -256,7 +329,7 @@ function cambiarUnidad(id) {
 }
 function prevIngreso(id) {
   const p = prod(id), g = num($('#i-cant').value) * gUni(), gp = num($('#i-gpr').value);
-  $('#i-prev').textContent = '= ' + fmt(g) + ' g' + (gp > 0 ? ' · ≈ ' + fmt(Math.floor(g / gp)) + ' rollos' : '') + ' · stock queda en ' + fmtG(p.stockG + g);
+  $('#i-prev').textContent = '= ' + fmt(g) + ' g' + (gp > 0 ? ' · ≈ ' + fmt(Math.floor(g / gp)) + ' rollos' : '') + ' · stock queda en ' + fmtG(dispG(p) + g);
 }
 function confirmarIngreso(id) {
   const p = prod(id), cant = num($('#i-cant').value), gp = num($('#i-gpr').value);
@@ -274,16 +347,17 @@ function vVender() {
   const hoyV = ventasDia(hoy());
   return '<h2>¿Qué vendiste?</h2>' + barraFiltro() + '<div id="lista">' + listaVender() + '</div>' +
     '<h2 style="margin-top:22px">Ventas de hoy</h2>' +
-    (hoyV.length ? hoyV.slice().reverse().map(v => '<div class="item"><div class="row"><div><div class="name">' + esc(v.nombre) + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · ' + (v.ganancia < 0 ? 'pierde ' : 'gana ') + money(Math.abs(v.ganancia)) + '</div></div><button class="btn del" onclick="borrarVenta(\'' + v.id + '\')">Deshacer</button></div></div>').join('') : '<div class="empty">Sin ventas hoy</div>');
+    (hoyV.length ? hoyV.slice().reverse().map(v => '<div class="item"><div class="row"><div><div class="name">' + esc(v.nombre) + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · ' + (v.ganancia < 0 ? 'pierde ' : 'gana ') + money(Math.abs(v.ganancia)) + '</div></div>' + (v.pedidoId ? '<span class="tag">Pedido</span>' : '<button class="btn del" onclick="borrarVenta(\'' + v.id + '\')">Deshacer</button>') + '</div></div>').join('') : '<div class="empty">Sin ventas hoy</div>');
 }
 function listaVender() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(p.stockG) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('');
+  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('');
 }
 function formVenta(id) {
+  if (espera()) return;
   const p = prod(id);
-  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Stock: ' + fmtG(p.stockG) + ' (≈ ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos) · ' + money(p.precio) + ' c/u</div>' +
+  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Stock: ' + fmtG(dispG(p)) + ' (≈ ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos) · ' + money(p.precio) + ' c/u</div>' +
     '<label>Rollos</label><div class="step"><button onclick="ajustarQty(-1,\'' + id + '\')">−</button><input id="v-qty" type="number" inputmode="decimal" value="1" oninput="calcVenta(\'' + id + '\')"><button onclick="ajustarQty(1,\'' + id + '\')">+</button></div>' +
     '<div class="hint" id="v-g"></div>' +
     '<div class="total"><b id="v-total"></b><span class="pos" id="v-gan"></span></div>' +
@@ -304,17 +378,121 @@ function registrarVenta(id) {
   if (q <= 0) return toast('Escribe la cantidad');
   if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Stock → Editar)');
   const g = r2(q * gpr(p));
-  if (g > p.stockG + 1e-6) return toast('Solo alcanza para ' + rollosDisp(p) + ' rollos (' + fmtG(p.stockG) + ')');
+  if (g > dispG(p) + 1e-6) return toast('Solo alcanza para ' + rollosDisp(p) + ' rollos (' + fmtG(dispG(p)) + ')');
   const costo = costoRollo(p);
   db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, gramos: g, precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
   p.stockG = Math.max(0, r2(p.stockG - g));
   guardar(); cerrarModal(); render(); toast('Venta registrada ✅'); if (navigator.vibrate) navigator.vibrate(15);
 }
 function borrarVenta(id) {
+  if (espera()) return;
   const v = db.ventas.find(x => x.id === id);
+  if (v && v.pedidoId) return toast('Viene de un pedido: deshaz la entrega en Pedidos');
   if (!v || !confirm('¿Deshacer esta venta? El stock se devuelve.')) return;
   const p = prod(v.productoId); if (p) p.stockG = r2(p.stockG + (v.gramos != null ? v.gramos : v.rollos * gpr(p)));
   db.ventas = db.ventas.filter(x => x.id !== id);
+  guardar(); render();
+}
+
+// ===== Pedidos =====
+let pedFiltro = 'pendiente', ped = null;
+const pendPed = () => (db.pedidos || []).filter(x => x.estado === 'pendiente');
+function setPedFiltro(f) { pedFiltro = f; render(); }
+function vPedidos() {
+  const pend = pendPed().length, ent = db.pedidos.length - pend, K = x => x.entrega || '9999';
+  let l = db.pedidos.filter(x => x.estado === pedFiltro);
+  l = pedFiltro === 'pendiente'
+    ? l.sort((a, b) => K(a) < K(b) ? -1 : K(a) > K(b) ? 1 : (a.id < b.id ? -1 : 1))
+    : l.sort((a, b) => (a.entregadoEn || '') < (b.entregadoEn || '') ? 1 : -1).slice(0, 30);
+  return '<h2>Pedidos</h2><button class="add" onclick="formPedido()">＋ Nuevo pedido</button>' +
+    '<div class="chips"><button class="chip ' + (pedFiltro === 'pendiente' ? 'on' : '') + '" onclick="setPedFiltro(\'pendiente\')">Por entregar (' + pend + ')</button>' +
+    '<button class="chip ' + (pedFiltro === 'entregado' ? 'on' : '') + '" onclick="setPedFiltro(\'entregado\')">Entregados (' + ent + ')</button></div>' +
+    (l.length ? l.map(cardPedido).join('') : '<div class="empty">' + (pedFiltro === 'pendiente' ? 'No hay pedidos por entregar' : 'Aún no hay pedidos entregados') + '</div>');
+}
+function cardPedido(x) {
+  const its = itemsDe(x), total = its.reduce((a, i) => a + i.rollos * i.precio, 0), pen = x.estado === 'pendiente';
+  return '<div class="item"><div class="row"><div><div class="name">' + esc(x.cliente || 'Sin nombre') + '</div><div class="meta">' +
+    (pen ? (x.entrega ? 'Entrega: ' + nombreDia(x.entrega) : 'Sin fecha de entrega') : 'Entregado: ' + nombreDia(x.entregadoEn)) + '<br>' +
+    its.map(i => fmt(i.rollos) + ' × ' + esc(i.nombre)).join(' · ') + (x.nota ? '<br>📝 ' + esc(x.nota) : '') + '</div></div>' +
+    '<span class="pill">' + money(total) + '</span></div>' +
+    '<div class="actions">' + (pen
+      ? '<button class="btn main" onclick="entregarPedido(\'' + x.id + '\')">✅ Entregar</button><button class="btn del" onclick="cancelarPedido(\'' + x.id + '\')">Cancelar pedido</button>'
+      : '<button class="btn" onclick="deshacerEntrega(\'' + x.id + '\')">Deshacer entrega</button>') + '</div></div>';
+}
+function formPedido() {
+  if (espera()) return;
+  if (!db.productos.length) return toast('Primero crea un producto en Stock');
+  ped = { items: [] };
+  const ops = db.productos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(p => '<option value="' + p.id + '">' + esc(p.nombre) + ' (' + rollosDisp(p).toLocaleString('es-CO') + ' disp.)</option>').join('');
+  modal('<h3>Nuevo pedido</h3><div class="sub" style="margin:2px 0 0">Aparta el producto del stock hasta que lo entregues</div>' +
+    '<label>Cliente</label><input id="p-cli" placeholder="Nombre del cliente">' +
+    '<label>Fecha de entrega (opcional)</label><input id="p-fec" type="date">' +
+    '<label>Producto</label><select id="p-prod">' + ops + '</select>' +
+    '<label>Rollos</label><div class="step"><button onclick="ajustarPed(-1)">−</button><input id="p-qty" type="number" inputmode="decimal" value="1"><button onclick="ajustarPed(1)">+</button></div>' +
+    '<button class="btn full" onclick="agregarItemPed()">＋ Agregar al pedido</button>' +
+    '<div id="p-items"></div>' +
+    '<label>Nota (opcional)</label><input id="p-nota" placeholder="Ej: lo recoge en la tienda">' +
+    '<button class="btn main full" onclick="guardarPedido()">Guardar pedido</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
+  pintarItemsPed();
+}
+function ajustarPed(d) { $('#p-qty').value = Math.max(1, Math.round((Math.max(0, num($('#p-qty').value)) + d) * 100) / 100); }
+function agregarItemPed() {
+  const p = prod($('#p-prod').value), q = Math.max(0, num($('#p-qty').value));
+  if (!p) return;
+  if (q <= 0) return toast('Escribe los rollos');
+  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Stock → Editar)');
+  const ex = ped.items.find(i => i.productoId === p.id), g = r2(q * gpr(p)), libre = dispG(p) - (ex ? ex.gramos : 0);
+  if (g > libre + 1e-6) return toast('Solo quedan ' + Math.max(0, Math.floor(libre / gpr(p) + 1e-9)) + ' rollos disponibles de ' + p.nombre);
+  if (ex) { ex.rollos = r2(ex.rollos + q); ex.gramos = r2(ex.gramos + g); }
+  else ped.items.push({ productoId: p.id, nombre: p.nombre, rollos: q, gramos: g, precio: p.precio });
+  $('#p-qty').value = 1; pintarItemsPed();
+}
+function quitarItemPed(i) { ped.items.splice(i, 1); pintarItemsPed(); }
+function pintarItemsPed() {
+  const t = ped.items.reduce((a, i) => a + i.rollos * i.precio, 0);
+  $('#p-items').innerHTML = ped.items.length
+    ? ped.items.map((i, k) => '<div class="item"><div class="row"><div><div class="name">' + esc(i.nombre) + '</div><div class="meta">' + fmt(i.rollos) + ' rollos · ' + money(i.rollos * i.precio) + '</div></div><button class="btn del" onclick="quitarItemPed(' + k + ')">Quitar</button></div></div>').join('') + '<div class="total"><b>' + money(t) + '</b></div>'
+    : '<div class="empty">Aún no agregas productos</div>';
+}
+function guardarPedido() {
+  const cliente = $('#p-cli').value.trim();
+  if (!cliente) return toast('Escribe el nombre del cliente');
+  if (!ped.items.length) return toast('Agrega al menos un producto');
+  db.pedidos.push({ id: uid(), fecha: hoy(), cliente, entrega: $('#p-fec').value || '', nota: $('#p-nota').value.trim(), estado: 'pendiente', items: ped.items });
+  ped = null; pedFiltro = 'pendiente';
+  guardar(); cerrarModal(); render(); toast('Pedido guardado, producto apartado ✅');
+}
+function entregarPedido(id) {
+  if (espera()) return;
+  const x = db.pedidos.find(y => y.id === id); if (!x || x.estado !== 'pendiente') return;
+  const its = itemsDe(x);
+  for (const i of its) {
+    const p = prod(i.productoId);
+    if (!p) return toast(i.nombre + ' ya no existe en el stock');
+    if (i.gramos > p.stockG + 1e-6) return toast('No alcanza el stock de ' + p.nombre + ' (' + fmtG(p.stockG) + ')');
+  }
+  if (!confirm('¿Entregar el pedido de ' + x.cliente + '? Se registra como venta de hoy.')) return;
+  its.forEach(i => {
+    const p = prod(i.productoId), costo = costoRollo(p);
+    db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: i.rollos, gramos: i.gramos, precio: i.precio, costo, total: i.rollos * i.precio, ganancia: i.rollos * (i.precio - costo), pedidoId: x.id });
+    p.stockG = Math.max(0, r2(p.stockG - i.gramos));
+  });
+  x.estado = 'entregado'; x.entregadoEn = hoy();
+  guardar(); render(); toast('Entregado y registrado como venta ✅'); if (navigator.vibrate) navigator.vibrate(15);
+}
+function cancelarPedido(id) {
+  if (espera()) return;
+  if (!confirm('¿Cancelar este pedido? El producto apartado vuelve a estar disponible.')) return;
+  db.pedidos = db.pedidos.filter(x => x.id !== id);
+  guardar(); render();
+}
+function deshacerEntrega(id) {
+  if (espera()) return;
+  const x = db.pedidos.find(y => y.id === id); if (!x) return;
+  if (!confirm('¿Deshacer la entrega? Se borran sus ventas y el pedido vuelve a por entregar.')) return;
+  db.ventas.filter(v => v.pedidoId === id).forEach(v => { const p = prod(v.productoId); if (p) p.stockG = r2(p.stockG + (v.gramos || 0)); });
+  db.ventas = db.ventas.filter(v => v.pedidoId !== id);
+  x.estado = 'pendiente'; delete x.entregadoEn;
   guardar(); render();
 }
 
@@ -371,7 +549,7 @@ function importar(inp) {
       const d = JSON.parse(r.result);
       if (!d.productos || !d.ventas) throw 0;
       if (!confirm('Esto reemplaza los datos actuales. ¿Continuar?')) return;
-      db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas });
+      db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas, pedidos: d.pedidos || [] });
       guardar(); cerrarModal(); render(); toast('Copia restaurada ✅');
     } catch (e) { toast('Archivo no válido'); }
   };
@@ -388,7 +566,8 @@ function iniciarNube() {
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
   firebase.auth().onAuthStateChanged(u => {
     desuscribir();
-    if (u) { paso = 'leyendo perfil'; vigilar(); perfil(u); } else { clearTimeout(timer); mostrarLogin(); }
+    if (u) { enLogin = false; paso = 'leyendo perfil'; vigilar(); perfil(u); }
+    else { clearTimeout(timer); cacheActiva = false; try { localStorage.removeItem(KEYC); } catch (e) {} if (!enLogin) mostrarLogin(); }
   });
 }
 let paso = '', timer = null;
@@ -397,6 +576,8 @@ function vigilar() {
   timer = setTimeout(() => { if (!listo) mostrarError(); }, 8000);
 }
 function mostrarError() {
+  quitarSplash();
+  if (cacheActiva) { sinRed = true; toast('Sin conexión: mostrando lo último guardado'); render(); return; }
   $('#nav').style.display = 'none';
   $('#app').innerHTML = '<div class="fade"><h2>No carga ⚠️</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Se quedó en: ' + esc(paso || 'inicio') + '</div><button class="btn main full" onclick="reintentar()">Reintentar</button><button class="btn full" style="margin-top:10px" onclick="salir()">Cerrar sesión</button></div></div>';
 }
@@ -436,7 +617,7 @@ function perfil(u) {
     });
 }
 function mostrarPendiente() {
-  $('#nav').style.display = 'none';
+  quitarSplash(); cacheActiva = false; enLogin = false; try { localStorage.removeItem(KEYC); } catch (e) {}  $('#nav').style.display = 'none';
   $('#app').innerHTML = '<div class="fade"><h2>Cuenta en espera ⏳</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Tu cuenta (' + esc(usuarioActual()) + ') ya está creada. Pídele al administrador que te apruebe; esta pantalla se abre sola cuando lo haga.</div><button class="btn del full" onclick="salir()">Cerrar sesión</button></div></div>';
 }
 // ===== Usuarios (solo administrador) =====
@@ -496,15 +677,16 @@ function escuchar() {
     db = migrar({
       productos: Object.values(remoto.productos).map(x => Object.assign({}, x)),
       entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
-      ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
+      ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1),
+      pedidos: Object.values(remoto.pedidos).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
     });
-    listo = true; clearTimeout(timer); $('#nav').style.display = ''; render();
+    listo = true; cacheActiva = false; sinRed = false; guardarCache(); quitarSplash(); clearTimeout(timer); $('#nav').style.display = ''; render();
   }, e => { fbRef = null; listo = false; paso = 'negocio: ' + (e && e.code ? e.code : 'error'); mostrarError(); });
 }
 
 // ===== Login y cuenta =====
 function mostrarLogin() {
-  $('#nav').style.display = 'none';
+  quitarSplash(); enLogin = true; cacheActiva = false;  $('#nav').style.display = 'none';
   const c = modoCrear, enter = ' onkeydown="if(event.key===\'Enter\')entrar()"';
   $('#app').innerHTML = '<div class="fade"><h2>' + (c ? 'Crear cuenta' : 'Iniciar sesión') + '</h2><div class="bubble">' +
     '<label>Usuario</label><input id="l-mail" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="Ej: rodrigo">' +
@@ -518,18 +700,39 @@ function entrar() {
   const u = $('#l-mail').value.trim().toLowerCase().replace(/\s+/g, ''), c = $('#l-pass').value;
   if (!u || !c) return toast('Escribe usuario y contraseña');
   if (!/^[a-z0-9._-]+$/.test(u)) return toast('El usuario solo puede tener letras y números');
+  if (typeof firebase === 'undefined' || !firebase.auth) return toast('Conectando… intenta de nuevo en un momento');
   const m = u + '@manodedios.app';
   if (!modoCrear) return firebase.auth().signInWithEmailAndPassword(m, c).catch(() => toast('Usuario o contraseña incorrectos'));
   if (c.length < 6) return toast('La contraseña debe tener mínimo 6 caracteres');
   if (c !== $('#l-pass2').value) return toast('Las contraseñas no coinciden');
   firebase.auth().createUserWithEmailAndPassword(m, c).catch(e => toast(e.code === 'auth/email-already-in-use' ? 'Ese usuario ya existe, elige otro' : 'No se pudo crear: ' + e.message));
 }
-function salir() { modoCrear = false; cerrarModal(); firebase.auth().signOut(); }
+function salir() { modoCrear = false; cacheActiva = false; try { localStorage.removeItem(KEYC); } catch (e) {} cerrarModal(); firebase.auth().signOut(); }
 
+function cargarScript(src) {
+  return new Promise((ok, mal) => {
+    const s = document.createElement('script'); s.src = src; s.onload = ok;
+    s.onerror = () => mal(new Error('No cargó ' + src)); document.head.appendChild(s);
+  });
+}
+function cargarFirebase() {
+  const b = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-';
+  return cargarScript(b + 'app-compat.js').then(() => Promise.all([cargarScript(b + 'auth-compat.js'), cargarScript(b + 'database-compat.js')]));
+}
 function iniciar() {
+  try { history.replaceState({ v: vista }, ''); } catch (e) {}
   if (!NUBE) { render(); quitarSplash(); return; }
-  local = db; db = { productos: [], entradas: [], ventas: [] };
-  render(); iniciarNube();
+  local = db; db = { productos: [], entradas: [], ventas: [], pedidos: [] };
+  let c = null;
+  try { c = JSON.parse(localStorage.getItem(KEYC)); } catch (e) {}
+  if (c && c.productos) { db = migrar(c); cacheActiva = true; $('#nav').style.display = ''; render(); quitarSplash(); }
+  else mostrarLogin();
+  cargarFirebase().then(iniciarNube).catch(() => {
+    sinRed = true; paso = 'sin conexión';
+    if (cacheActiva) toast('Sin conexión: mostrando lo último guardado');
+    else if (!enLogin) mostrarError();
+    else toast('Sin conexión a internet');
+  });
 }
 window.addEventListener('error', e => { if (!listo) { paso = 'error JS: ' + e.message; mostrarError(); } });
 window.addEventListener('unhandledrejection', e => { if (!listo) { paso = 'promesa: ' + (e.reason && (e.reason.code || e.reason.message) || e.reason); mostrarError(); } });
