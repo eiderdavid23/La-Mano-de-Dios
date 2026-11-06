@@ -62,7 +62,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [ ] Definir los gramos por rollo reales de cada producto
 - [ ] Base de datos: se deja para después. El cliente pidió cambios, revisarlos antes de conectar Firebase
 - [ ] Confirmar con el cliente si "se hicieron N rollos" debe ser un paso aparte de la venta (producción) o si descontar al vender está bien
-- [ ] Confirmar cómo se venden las salsas (¿también por rollos o por otra unidad?)
+- [x] Salsas: se venden igual, por rollo de 14 unidades; solo se compran por caneca (parche17)
 - [ ] Login y usuarios (empleados)
 - [ ] Guardar datos en la nube (Firebase) para usar en varios celulares
 - [ ] Gastos del mes (restar a la ganancia)
@@ -112,3 +112,9 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 
 ## Cambios parche16
 - Aviso de actualización: la app compara su versión (el ?v= con que index.html cargó app.js) con la del index.html publicado (se pide sin copia guardada). Si hay una mayor sale abajo, sobre la barra, "Se hizo una actualización reciente" con botón Recargar (y una X para cerrar). Recargar pide el index nuevo saltándose la copia guardada y recarga. Revisa a los 4 s de abrir, cada 5 min, al volver a la app y al recuperar internet. No hace falta tocar nada más: cada parche ya cambia el ?v= de index.html. Funciones en app.js: revisarVersion, avisarActualizacion, cerrarAvisoUpd, recargarApp. Los teléfonos con una versión anterior a parche16 necesitan una recarga manual la primera vez.
+
+## Cambios parche17
+- Salsas se compran por CANECA, aliños por kilo. El stock sigue guardándose en gramos y las ventas por rollo no cambian; solo cambia cómo se ingresa.
+- Producto nuevo/editar: al escoger la categoría Salsas, el costo por kilo se cambia por "Kilos que trae cada caneca" y "Costo por caneca ($)" (costoKilo = costo de caneca / kilos). Aliños y Otro siguen con "Costo por kilo". Se guarda p.kilosCaneca. Funciones: esSalsa, costoKiloForm, cambiarCatForm.
+- Stock > Ingresar: en productos de Salsas el botón dice "Ingresar canecas" y el formulario pide canecas que llegaron, kilos por caneca, gramos por rollo y costo por caneca; suma al stock (canecas x kilos x 1000 g). Los ingresos guardan unidad 'ca' y kilosCaneca; las listas y el detalle dicen "canecas". La capacidad de la caneca se recuerda en el producto. enCaneca() indica el modo.
+- Supuesto: la caneca se mide en kilos (si viene en litros, se escribe lo que pesa).
