@@ -130,3 +130,12 @@ body.menu-on #drawer{transform:none}
 
 .mi span{display:grid;place-items:center;font-size:1rem}
 .btn .ic{width:18px;height:18px;vertical-align:-4px;margin-right:4px}
+
+.kvs{margin-top:12px;border-top:1px solid var(--line)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.86rem}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--mut)}
+.kv b{text-align:right;font-weight:700}
+.kv b small{display:block;font-weight:600;color:var(--mut);font-size:.74rem;margin-top:1px}
+.meta .ic,.sub .ic,.hint .ic,.dsec .ic,.dt .ic,.tag .ic{width:14px;height:14px;vertical-align:-2px}
+.preview .ic{width:17px;height:17px;vertical-align:-3px}

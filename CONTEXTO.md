@@ -92,3 +92,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 ## Cambios parche11
 - Stock: quitada la línea "Con ese stock se pueden hacer N rollos · ≈ N unidades" de cada producto.
 - Iconos: el botón "Rollos hechos" y los items del menú lateral (Pedidos, Usuarios, Respaldo, Cerrar sesión) usan iconos SVG de línea, igual que la barra de abajo. Están en el objeto ICO de app.js (se crean con ic()). Regla: no usar emojis para botones ni menús; usar ic() con trazo.
+
+## Cambios parche12
+- Sin emojis en toda la app: los mensajes cortos van en texto y los lugares con icono usan ICO (hora, persona, nota, alerta, check). Regla: no usar emojis; usar ic() con trazo.
+- Stock: la tarjeta de cada producto ahora son filas con título claro (Rollos listos para vender, Rollos hechos hoy / este mes, Cada rollo, De la materia salen, Precio de venta, Costo, Ganancia). La burbuja de la derecha dice "En bodega" con los gramos y para cuántos rollos alcanza.

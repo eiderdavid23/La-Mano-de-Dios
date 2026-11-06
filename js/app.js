@@ -155,7 +155,12 @@ const ICO = {
   pedidos: ic('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>'),
   usuarios: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.4 0 4 1.9 4 4.5"/>'),
   respaldo: ic('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 19h16"/>'),
-  salir: ic('<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/><path d="M15 8l4 4-4 4M19 12H9"/>')
+  salir: ic('<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/><path d="M15 8l4 4-4 4M19 12H9"/>'),
+  hora: ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  persona: ic('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>'),
+  nota: ic('<path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/>'),
+  alerta: ic('<path d="M12 3 2.5 20h19z"/><path d="M12 10v5M12 17.5v.5"/>'),
+  check: ic('<path d="m5 12.5 4.5 4.5L19 7.5"/>')
 };
 let vistaPrev = null;
 // Los números grandes cuentan hacia arriba al cambiar de pantalla
@@ -202,7 +207,7 @@ function htmlMenu() {
   const adm = NUBE && miPerfil && miPerfil.admin;
   const pend = pendPed().length, esp = adm && pendientes() ? ' (' + pendientes() + ' en espera)' : '';
   const it = (ico, t, f, extra) => '<button class="mi" onclick="' + f + '"><span>' + ico + '</span>' + t + (extra || '') + '</button>';
-  return '<div class="dh"><b>Condimentos la Mano de Dios</b><small>' + (NUBE ? esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') : 'Datos en este teléfono') + '</small></div>' +
+  return '<div class="dh"><b>Condimentos la Mano de Dios</b><small>' + (NUBE ? esc(usuarioActual()) + (adm ? ' · administrador' : '') : 'Datos en este teléfono') + '</small></div>' +
     it(ICO.pedidos, 'Pedidos', 'menuPedidos()', pend ? '<em>' + pend + '</em>' : '') +
     (adm ? it(ICO.usuarios, 'Usuarios' + esp, 'menuModal(abrirUsuarios)') : '') +
     (!NUBE ? it(ICO.respaldo, 'Respaldo', 'menuModal(abrirAjustes)') : '') +
@@ -248,7 +253,7 @@ function vInicio() {
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
     (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
-    (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en 📦 Stock</div>' : '');
+    (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en Stock</div>' : '');
 }
 
 // ===== Stock =====
@@ -264,14 +269,24 @@ function vStock() {
 function listaStock() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  return l.map(p =>
-    '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
-    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + '<b>Rollos hechos: ' + fmt(p.hechos || 0) + '</b>' + (apartadoR(p) > 0 ? ' (' + fmt(apartadoR(p)) + ' apartados en pedidos)' : '') + ' · hoy ' + fmt(hechosEn(p.id, hoy())) + ' · este mes ' + fmt(hechosMes(p.id, hoy().slice(0, 7))) + '<br>' +
-    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>' : '') +
-    (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> (' + fmt(costoRollo(p) > 0 ? gananciaRollo(p) / costoRollo(p) * 100 : 0) + '%) por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
-    '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
-    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">' + ICO.rollos + ' Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
-  ).join('');
+  const kv = (k, v) => '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>';
+  return l.map(p => {
+    const g = gpr(p), ga = gananciaRollo(p), cr = costoRollo(p);
+    return '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span></div></div>' +
+      '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>En bodega</small>' + fmtG(dispG(p)) + (g > 0 ? '<small>para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small>' : '') + '</span></div>' +
+      '<div class="kvs">' +
+      kv('Rollos listos para vender', fmt(p.hechos || 0) + (apartadoR(p) > 0 ? '<small>' + fmt(apartadoR(p)) + ' apartados en pedidos</small>' : '')) +
+      kv('Rollos hechos', 'hoy ' + fmt(hechosEn(p.id, hoy())) + ' · este mes ' + fmt(hechosMes(p.id, hoy().slice(0, 7)))) +
+      (g > 0
+        ? kv('Cada rollo', fmtG(g) + ' · ' + fmt(p.unidadesRollo) + ' unidades') +
+          kv('De la materia salen', '1 kilo = ' + fmt(1000 / g) + ' rollos<small>1 libra = ' + fmt(500 / g) + ' rollos</small>') +
+          kv('Precio de venta', money(p.precio) + ' por rollo') +
+          kv('Costo', money(cr) + ' por rollo') +
+          kv('Ganancia', '<span class="' + gCls(ga) + '">' + money(ga) + '</span> por rollo<small>' + fmt(cr > 0 ? ga / cr * 100 : 0) + ' % sobre el costo</small>')
+        : kv('Precio de venta', money(p.precio) + ' por rollo') + '<div class="kv"><span class="neg">Falta definir los gramos por rollo. Toca Editar.</span></div>') +
+      '</div>' +
+      '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">' + ICO.rollos + ' Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>';
+  }).join('');
 }
 
 function opcionesCat(sel) {
@@ -320,7 +335,7 @@ function guardarProducto(id) {
   const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: num($('#f-gpr').value), precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), minimoG: num($('#f-min').value), stockG: r2(num($('#f-stock').value)) };
   if (id) Object.assign(prod(id), d);
   else db.productos.push(Object.assign({ id: uid(), stockG: num($('#f-stock').value) }, d));
-  guardar(); cerrarModal(); render(); toast('Producto guardado ✅');
+  guardar(); cerrarModal(); render(); toast('Producto guardado');
 }
 function borrarProducto(id) {
   if (espera()) return;
@@ -364,7 +379,7 @@ function confirmarIngreso(id) {
   if (g >= 100000 && !confirm('¿Seguro? Vas a ingresar ' + fmt(g) + ' g (' + fmt(g / 1000) + ' kilos).')) return;
   p.stockG = r2(p.stockG + g); p.costoKilo = r2(costoKilo); p.gramosPorRollo = gp;
   db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, hora: ahora(), por: quien(), cantidad: cant, unidad: $('#i-uni').value, gramos: g, costoKilo: p.costoKilo, gramosRollo: gp, stockDespuesG: p.stockG });
-  guardar(); cerrarModal(); render(); toast('+' + fmt(g) + ' g ✅');
+  guardar(); cerrarModal(); render(); toast('+' + fmt(g) + ' g');
 }
 
 // ===== Rollos hechos (producción) =====
@@ -383,7 +398,7 @@ function prevProd(id) {
   const p = prod(id), q = num($('#h-cant').value), resto = p.stockG - q * gpr(p), el = $('#h-prev');
   if (q > 0 && resto < -1e-6) {
     el.classList.add('warn');
-    el.innerHTML = '⚠️ Salieron más de lo calculado<small>Con el stock alcanzaba para ' + rollosDisp(p) + ' rollos y estás registrando ' + fmt(q) + ' (' + fmt(r2(q - rollosDisp(p))) + ' de más, ≈ ' + fmtG(-resto) + ' que no estaban en el stock). El stock queda en 0 g.</small>';
+    el.innerHTML = '' + ICO.alerta + ' Salieron más de lo calculado<small>Con el stock alcanzaba para ' + rollosDisp(p) + ' rollos y estás registrando ' + fmt(q) + ' (' + fmt(r2(q - rollosDisp(p))) + ' de más, ≈ ' + fmtG(-resto) + ' que no estaban en el stock). El stock queda en 0 g.</small>';
     return;
   }
   el.classList.remove('warn');
@@ -398,7 +413,7 @@ function confirmarProd(id) {
   p.stockG = exc > 0 ? 0 : r2(p.stockG - g); p.hechos = r2((p.hechos || 0) + q);
   db.produccion.push({ id: uid(), fecha: f, reg: hoy(), hora: ahora(), por: quien(), productoId: id, nombre: p.nombre, rollos: q, gramos: g, gramosRollo: gpr(p), excesoG: exc, excesoR: excR, alcanzaba: alc, quedaronG: p.stockG });
   guardar(); cerrarModal(); render();
-  toast(exc > 0 ? '+' + fmt(q) + ' rollos · ⚠️ salieron ' + fmt(excR) + ' más de lo calculado' : '+' + fmt(q) + ' rollos hechos ✅');
+  toast(exc > 0 ? '+' + fmt(q) + ' rollos · salieron ' + fmt(excR) + ' más de lo calculado' : '+' + fmt(q) + ' rollos hechos');
 }
 function borrarProduccion(id) {
   if (espera()) return;
@@ -412,17 +427,17 @@ function borrarProduccion(id) {
 }
 function lineaProd(x, vol) {
   const a = vol ? ",'" + vol + "'" : '', exc = x.excesoG > 0;
-  return '<div class="item tap" onclick="detalleProd(\'' + x.id + '\'' + a + ')"><div class="row"><div><div class="name">' + esc(x.nombre) + (exc ? ' <span class="tag warn">Salieron de más</span>' : '') + '</div><div class="meta">' + fmt(x.rollos) + ' rollos · ' + nombreDia(x.fecha) + (x.hora ? ' · 🕒 ' + fmtHora(x.hora) : '') + (exc ? '<br>⚠️ Salieron ' + fmt(x.excesoR || 0) + ' rollos más de lo calculado' : '') + '</div></div>' + (vol ? '' : '<button class="btn del" onclick="event.stopPropagation();borrarProduccion(\'' + x.id + '\')">Deshacer</button>') + '</div></div>';
+  return '<div class="item tap" onclick="detalleProd(\'' + x.id + '\'' + a + ')"><div class="row"><div><div class="name">' + esc(x.nombre) + (exc ? ' <span class="tag warn">Salieron de más</span>' : '') + '</div><div class="meta">' + fmt(x.rollos) + ' rollos · ' + nombreDia(x.fecha) + (x.hora ? ' · ' + ICO.hora + ' ' + fmtHora(x.hora) : '') + (exc ? '<br>' + ICO.alerta + ' Salieron ' + fmt(x.excesoR || 0) + ' rollos más de lo calculado' : '') + '</div></div>' + (vol ? '' : '<button class="btn del" onclick="event.stopPropagation();borrarProduccion(\'' + x.id + '\')">Deshacer</button>') + '</div></div>';
 }
 function lineaIngreso(x) {
   const u = { kg: 'kilos', lb: 'libras', g: 'gramos' }[x.unidad] || '';
-  return '<div class="item tap" onclick="detalleIngreso(\'' + x.id + '\')"><div class="row"><div><div class="name">' + esc(x.nombre) + '</div><div class="meta">+' + fmt(x.cantidad) + ' ' + u + ' · ' + nombreDia(x.fecha) + (x.hora ? ' · 🕒 ' + fmtHora(x.hora) : '') + '<br>' + fmtG(x.gramos) + ' al stock</div></div></div></div>';
+  return '<div class="item tap" onclick="detalleIngreso(\'' + x.id + '\')"><div class="row"><div><div class="name">' + esc(x.nombre) + '</div><div class="meta">+' + fmt(x.cantidad) + ' ' + u + ' · ' + nombreDia(x.fecha) + (x.hora ? ' · ' + ICO.hora + ' ' + fmtHora(x.hora) : '') + '<br>' + fmtG(x.gramos) + ' al stock</div></div></div></div>';
 }
 function detalleProd(id, vol) {
   const x = db.produccion.find(y => y.id === id); if (!x) return;
   const p = prod(x.productoId), exc = x.excesoG || 0, und = p && p.unidadesRollo ? r2(x.rollos * p.unidadesRollo) : null;
   const gr = x.gramosRollo || (x.rollos ? r2(x.gramos / x.rollos) : 0);
-  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Rollos hechos' + (exc > 0 ? ' · ⚠️ salieron más de lo calculado' : '') + '</div>' +
+  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Rollos hechos' + (exc > 0 ? ' · ' + ICO.alerta + ' salieron más de lo calculado' : '') + '</div>' +
     '<div class="dsec">Producción</div>' +
     filaD('Rollos hechos', fmt(x.rollos)) + filaD('Unidades', und != null ? fmt(und) : '') +
     filaD('Día en que se hicieron', diaLargo(x.fecha), 1) +
@@ -432,14 +447,14 @@ function detalleProd(id, vol) {
     '<div class="dsec">Materia</div>' +
     filaD('Gramos por rollo', gr ? fmtG(gr) : '') + filaD('Materia usada', fmtG(x.gramos)) +
     (x.quedaronG != null ? filaD('Quedó en el stock', fmtG(x.quedaronG)) : '') +
-    (exc > 0 ? '<div class="dsec warn">⚠️ Salieron más de lo calculado</div>' + filaD('El stock alcanzaba para', fmt(x.alcanzaba || 0) + ' rollos') + filaD('Salieron de más', fmt(x.excesoR || 0) + ' rollos') + filaD('Materia que no estaba en el stock', fmtG(exc)) : '') +
+    (exc > 0 ? '<div class="dsec warn">' + ICO.alerta + ' Salieron más de lo calculado</div>' + filaD('El stock alcanzaba para', fmt(x.alcanzaba || 0) + ' rollos') + filaD('Salieron de más', fmt(x.excesoR || 0) + ' rollos') + filaD('Materia que no estaba en el stock', fmtG(exc)) : '') +
     btnVolver('detalleDiaProd', vol));
 }
 function detalleIngreso(id) {
   const x = db.entradas.find(y => y.id === id); if (!x) return;
   const u = { kg: 'kilos', lb: 'libras', g: 'gramos' }[x.unidad] || '', p = prod(x.productoId);
   const costo = x.costoKilo ? x.gramos / 1000 * x.costoKilo : 0, gr = x.gramosRollo || (p ? gpr(p) : 0);
-  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">📦 Ingreso de materia</div>' +
+  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Ingreso de materia</div>' +
     '<div class="dsec">Ingreso</div>' +
     filaD('Llegó', fmt(x.cantidad) + ' ' + u) + filaD('Equivale a', fmtG(x.gramos) + ' (' + fmt(x.gramos / 1000) + ' kg)') +
     filaD('Día', diaLargo(x.fecha), 1) + filaD('Hora', x.hora ? fmtHora(x.hora) : 'No se registró (ingreso antiguo)') +
@@ -453,7 +468,7 @@ function detalleIngreso(id) {
 
 // ===== Vender =====
 function vVender() {
-  if (!db.productos.length) return '<div class="empty">Primero crea un producto en 📦 Stock</div>';
+  if (!db.productos.length) return '<div class="empty">Primero crea un producto en Stock</div>';
   const hoyV = ventasDia(hoy());
   return '<h2>¿Qué vendiste?</h2>' + barraFiltro() + '<div id="lista">' + listaVender() + '</div>' +
     '<h2 style="margin-top:22px">Ventas de hoy</h2>' +
@@ -461,7 +476,7 @@ function vVender() {
 }
 function lineaVenta(v, vol) {
   const a = vol ? ",'" + vol + "'" : '';
-  const q2 = (v.cliente ? '👤 ' + esc(v.cliente) : '') + (v.cliente && v.hora ? ' · ' : '') + (v.hora ? '🕒 ' + fmtHora(v.hora) : '');
+  const q2 = (v.cliente ? '' + ICO.persona + ' ' + esc(v.cliente) : '') + (v.cliente && v.hora ? ' · ' : '') + (v.hora ? '' + ICO.hora + ' ' + fmtHora(v.hora) : '');
   return '<div class="item tap" onclick="detalleVenta(\'' + v.id + '\'' + a + ')"><div class="row"><div><div class="name">' + esc(v.nombre) + (v.pedidoId ? ' <span class="tag">Pedido</span>' : '') + '</div><div class="meta">' + fmt(v.rollos) + ' rollos · ' + money(v.total) + ' · ' + (v.ganancia < 0 ? 'pierde ' : 'gana ') + money(Math.abs(v.ganancia)) + (q2 ? '<br>' + q2 : '') + '</div></div>' + (v.pedidoId || vol ? '' : '<button class="btn del" onclick="event.stopPropagation();borrarVenta(\'' + v.id + '\')">Deshacer</button>') + '</div></div>';
 }
 function listaVender() {
@@ -495,7 +510,7 @@ function registrarVenta(id) {
   const cli = ($('#v-cli').value || '').trim();
   p.hechos = r2((p.hechos || 0) - q);
   db.ventas.push({ id: uid(), fecha: hoy(), hora: ahora(), por: quien(), cliente: cli, productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, unidades: r2(q * (p.unidadesRollo || 0)), gramos: 0, modo: 'hechos', precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo), quedaron: p.hechos });
-  guardar(); cerrarModal(); render(); toast('Venta registrada ✅'); if (navigator.vibrate) navigator.vibrate(15);
+  guardar(); cerrarModal(); render(); toast('Venta registrada'); if (navigator.vibrate) navigator.vibrate(15);
 }
 function borrarVenta(id) {
   if (espera()) return;
@@ -527,11 +542,11 @@ function cardPedido(x) {
   const its = itemsDe(x), total = its.reduce((a, i) => a + i.rollos * i.precio, 0), pen = x.estado === 'pendiente';
   const hecho = 'Pedido hecho: ' + (x.fecha ? nombreDia(x.fecha) : '—') + (x.hora ? ' · ' + fmtHora(x.hora) : '');
   return '<div class="item"><div class="row"><div class="tap" onclick="detallePedido(\'' + x.id + '\')"><div class="name">' + esc(x.cliente || 'Sin nombre') + '</div><div class="meta">' +
-    (pen ? (x.entrega ? 'Entrega: ' + nombreDia(x.entrega) : 'Sin fecha de entrega') : '✅ Entregado: ' + nombreDia(x.entregadoEn) + (x.entregadoHora ? ' · 🕒 ' + fmtHora(x.entregadoHora) : '')) + '<br>' + hecho + '<br>' +
-    its.map(i => fmt(i.rollos) + ' × ' + esc(i.nombre)).join(' · ') + (x.nota ? '<br>📝 ' + esc(x.nota) : '') + '</div></div>' +
+    (pen ? (x.entrega ? 'Entrega: ' + nombreDia(x.entrega) : 'Sin fecha de entrega') : 'Entregado: ' + nombreDia(x.entregadoEn) + (x.entregadoHora ? ' · ' + ICO.hora + ' ' + fmtHora(x.entregadoHora) : '')) + '<br>' + hecho + '<br>' +
+    its.map(i => fmt(i.rollos) + ' × ' + esc(i.nombre)).join(' · ') + (x.nota ? '<br>' + ICO.nota + ' ' + esc(x.nota) : '') + '</div></div>' +
     '<span class="pill">' + money(total) + '</span></div>' +
     '<div class="actions"><button class="btn" onclick="detallePedido(\'' + x.id + '\')">Ver detalle</button>' + (pen
-      ? '<button class="btn main" onclick="entregarPedido(\'' + x.id + '\')">✅ Entregar</button><button class="btn del" onclick="cancelarPedido(\'' + x.id + '\')">Cancelar pedido</button>'
+      ? '<button class="btn main" onclick="entregarPedido(\'' + x.id + '\')">' + ICO.check + ' Entregar</button><button class="btn del" onclick="cancelarPedido(\'' + x.id + '\')">Cancelar pedido</button>'
       : '<button class="btn" onclick="deshacerEntrega(\'' + x.id + '\')">Deshacer entrega</button>') + '</div></div>';
 }
 function formPedido() {
@@ -573,7 +588,7 @@ function guardarPedido() {
   if (!ped.items.length) return toast('Agrega al menos un producto');
   db.pedidos.push({ id: uid(), fecha: hoy(), hora: ahora(), por: quien(), cliente, entrega: $('#p-fec').value || '', nota: $('#p-nota').value.trim(), estado: 'pendiente', items: ped.items });
   ped = null; pedFiltro = 'pendiente';
-  guardar(); cerrarModal(); render(); toast('Pedido guardado, producto apartado ✅');
+  guardar(); cerrarModal(); render(); toast('Pedido guardado, producto apartado');
 }
 function entregarPedido(id) {
   if (espera()) return;
@@ -592,7 +607,7 @@ function entregarPedido(id) {
     db.ventas.push({ id: uid(), fecha: hoy(), hora: hr, por, cliente: x.cliente || '', productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: i.rollos, unidades: r2(i.rollos * (p.unidadesRollo || 0)), gramos: 0, modo: 'hechos', precio: i.precio, costo, total: i.rollos * i.precio, ganancia: i.rollos * (i.precio - costo), quedaron: p.hechos, pedidoId: x.id });
   });
   x.estado = 'entregado'; x.entregadoEn = hoy(); x.entregadoHora = hr; x.entregadoPor = por;
-  guardar(); render(); toast('Entregado y registrado como venta ✅'); if (navigator.vibrate) navigator.vibrate(15);
+  guardar(); render(); toast('Entregado y registrado como venta'); if (navigator.vibrate) navigator.vibrate(15);
 }
 function cancelarPedido(id) {
   if (espera()) return;
@@ -619,7 +634,7 @@ function detalleVenta(id, vol) {
   const cli = v.cliente || (x && x.cliente) || '';
   const und = v.unidades != null ? v.unidades : (p && p.unidadesRollo ? r2(v.rollos * p.unidadesRollo) : null);
   const gr = v.rollos ? v.ganancia / v.rollos : 0;
-  modal('<h3>' + esc(v.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">' + (x ? '📋 Venta por pedido' : '🛒 Venta directa') + '</div>' +
+  modal('<h3>' + esc(v.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">' + (x ? 'Venta por pedido' : 'Venta directa') + '</div>' +
     '<div class="dsec">Cliente y entrega</div>' +
     filaD('Se la vendimos a', cli ? esc(cli) : 'No se anotó el cliente') +
     filaD(x ? 'Entregado el' : 'Vendido el', diaLargo(v.fecha), 1) +
@@ -654,7 +669,7 @@ function detallePedido(id) {
   const vs = db.ventas.filter(v => v.pedidoId === id), dias = f => { const a = f.split('-').map(Number); return Math.round(Date.UTC(a[0], a[1] - 1, a[2]) / 864e5); };
   let punt = '';
   if (ent && x.entrega && x.entregadoEn) { const d = dias(x.entregadoEn) - dias(x.entrega); punt = d === 0 ? 'A tiempo (el día prometido)' : d < 0 ? 'Adelantado ' + (-d) + (d === -1 ? ' día' : ' días') : 'Tarde ' + d + (d === 1 ? ' día' : ' días'); }
-  modal('<h3>' + esc(x.cliente || 'Sin nombre') + '</h3><div class="sub" style="margin:2px 0 4px">' + (ent ? '✅ Pedido entregado' : '⏳ Pedido por entregar') + '</div>' +
+  modal('<h3>' + esc(x.cliente || 'Sin nombre') + '</h3><div class="sub" style="margin:2px 0 4px">' + (ent ? 'Pedido entregado' : 'Pedido por entregar') + '</div>' +
     '<div class="dsec">Pedido</div>' +
     filaD('Pedido hecho el', diaLargo(x.fecha), 1) + filaD('Hora del pedido', x.hora ? fmtHora(x.hora) : 'No se registró (pedido antiguo)') +
     filaD('Anotado por', x.por ? esc(x.por) : '') + filaD('Entrega prometida', x.entrega ? diaLargo(x.entrega) : 'Sin fecha', 1) +
@@ -712,7 +727,7 @@ function abrirAjustes() {
     return;
   }
   const adm = miPerfil && miPerfil.admin;
-  modal('<h3>Ajustes</h3><div class="sub" style="margin:2px 0 10px">Sesión: ' + esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') + '<br>Tus datos se guardan en la nube automáticamente.</div>' +
+  modal('<h3>Ajustes</h3><div class="sub" style="margin:2px 0 10px">Sesión: ' + esc(usuarioActual()) + (adm ? ' · administrador' : '') + '<br>Tus datos se guardan en la nube automáticamente.</div>' +
     (adm ? '<button class="btn main full" onclick="abrirUsuarios()">' + ICO.usuarios + ' Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
     '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' +
     '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
@@ -731,7 +746,7 @@ function importar(inp) {
       if (!d.productos || !d.ventas) throw 0;
       if (!confirm('Esto reemplaza los datos actuales. ¿Continuar?')) return;
       db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas, pedidos: d.pedidos || [], produccion: d.produccion || [] });
-      guardar(); cerrarModal(); render(); toast('Copia restaurada ✅');
+      guardar(); cerrarModal(); render(); toast('Copia restaurada');
     } catch (e) { toast('Archivo no válido'); }
   };
   r.readAsText(f);
@@ -760,7 +775,7 @@ function mostrarError() {
   quitarSplash();
   if (cacheActiva) { sinRed = true; toast('Sin conexión: mostrando lo último guardado'); render(); return; }
   $('#nav').style.display = 'none';
-  $('#app').innerHTML = '<div class="fade"><h2>No carga ⚠️</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Se quedó en: ' + esc(paso || 'inicio') + '</div><button class="btn main full" onclick="reintentar()">Reintentar</button><button class="btn full" style="margin-top:10px" onclick="salir()">Cerrar sesión</button></div></div>';
+  $('#app').innerHTML = '<div class="fade"><h2>No carga</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Se quedó en: ' + esc(paso || 'inicio') + '</div><button class="btn main full" onclick="reintentar()">Reintentar</button><button class="btn full" style="margin-top:10px" onclick="salir()">Cerrar sesión</button></div></div>';
 }
 function reintentar() {
   desuscribir();
@@ -799,7 +814,7 @@ function perfil(u) {
 }
 function mostrarPendiente() {
   quitarSplash(); cacheActiva = false; enLogin = false; try { localStorage.removeItem(KEYC); } catch (e) {}  $('#nav').style.display = 'none';
-  $('#app').innerHTML = '<div class="fade"><h2>Cuenta en espera ⏳</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Tu cuenta (' + esc(usuarioActual()) + ') ya está creada. Pídele al administrador que te apruebe; esta pantalla se abre sola cuando lo haga.</div><button class="btn del full" onclick="salir()">Cerrar sesión</button></div></div>';
+  $('#app').innerHTML = '<div class="fade"><h2>Cuenta en espera</h2><div class="bubble"><div class="sub" style="margin:0 0 14px">Tu cuenta (' + esc(usuarioActual()) + ') ya está creada. Pídele al administrador que te apruebe; esta pantalla se abre sola cuando lo haga.</div><button class="btn del full" onclick="salir()">Cerrar sesión</button></div></div>';
 }
 // ===== Usuarios (solo administrador) =====
 function vigilarUsuarios() {
@@ -817,7 +832,7 @@ function htmlUsuarios() {
   if (!ids.length) return '<div class="empty">Sin usuarios</div>';
   return ids.map(id => {
     const x = listaUsr[id];
-    return '<div class="item"><div class="row"><div><div class="name">' + esc(x.nombre || '(sin nombre)') + (x.admin ? ' 👑' : '') + '</div><div class="meta">' + (x.aprobado ? 'Con acceso' : '⏳ Esperando aprobación') + '</div></div>' +
+    return '<div class="item"><div class="row"><div><div class="name">' + esc(x.nombre || '(sin nombre)') + (x.admin ? ' <span class="tag">Administrador</span>' : '') + '</div><div class="meta">' + (x.aprobado ? 'Con acceso' : 'Esperando aprobación') + '</div></div>' +
       botonesUsr(id, x) + '</div></div>';
   }).join('');
 }
