@@ -1,3 +1,13 @@
+// ===== Pantalla de carga =====
+const splashT0 = Date.now();
+function quitarSplash() {
+  const s = document.getElementById('splash');
+  if (!s || s.dataset.salio) return;
+  s.dataset.salio = '1';
+  setTimeout(() => { s.classList.add('out'); setTimeout(() => s.remove(), 600); }, Math.max(0, 900 - (Date.now() - splashT0)));
+}
+setTimeout(quitarSplash, 10000);
+
 // ===== Datos =====
 function p2(n) { return String(n).padStart(2, '0'); }
 const r2 = n => Math.round(n * 100) / 100;
@@ -489,7 +499,7 @@ function entrar() {
 function salir() { modoCrear = false; cerrarModal(); firebase.auth().signOut(); }
 
 function iniciar() {
-  if (!NUBE) { render(); return; }
+  if (!NUBE) { render(); quitarSplash(); return; }
   local = db; db = { productos: [], entradas: [], ventas: [] };
   render(); iniciarNube();
 }
