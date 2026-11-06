@@ -70,3 +70,9 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Colores: el amarillo pasó a durazno suave (#F5C6A0).
 - Menú lateral (hamburguesa) reemplaza al engranaje: Pedidos, Usuarios (admin), Respaldo (modo local), Cerrar sesión.
 - Pedidos: nodo "pedidos" dentro de "negocio". Un pedido pendiente aparta gramos del stock (disponible = stockG - apartado). Al entregar se crean las ventas (con pedidoId) y se descuenta el stock; la ganancia cuenta el día de la entrega. Deshacer entrega borra esas ventas. Cancelar libera lo apartado.
+
+## Cambios parche9
+- Rollos hechos (producción): en Stock, botón "Rollos hechos" por producto. Se escribe cuántos rollos se hicieron y el día; descuenta gramos del stock (rollos x gramos por rollo) y suma a p.hechos. Se guarda en el nodo "produccion". El stock muestra los gramos que quedan y los rollos que aún se pueden hacer.
+- Vender y pedidos ahora descuentan ROLLOS HECHOS (p.hechos), no gramos. Las ventas nuevas llevan modo:'hechos'; las viejas (sin modo) devolvían gramos al deshacer. Los pedidos pendientes apartan rollos hechos; se pueden crear sin rollos hechos, pero entregar exige tenerlos.
+- Ganancias (por mes): resumen con rollos hechos, materia ingresada, producción por producto y por día. Cada mes empieza de cero; el stock que queda pasa al mes siguiente.
+- Ingreso de materia: unidades Kilos, Libras o Gramos; pregunta si se ingresan 100 kilos o más.

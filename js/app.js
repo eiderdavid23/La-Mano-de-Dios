@@ -18,8 +18,8 @@ let mesSel = hoy().slice(0, 7);
 let fCat = 'Todas', fBus = '';
 const NUBE = typeof firebaseConfig !== 'undefined' && !!firebaseConfig.apiKey;
 let local = null, fbRef = null, listo = !NUBE;
-const remoto = { productos: {}, entradas: {}, ventas: {}, pedidos: {} };
-const COLS = ['productos', 'entradas', 'ventas', 'pedidos'];
+const remoto = { productos: {}, entradas: {}, ventas: {}, pedidos: {}, produccion: {} };
+const COLS = ['productos', 'entradas', 'ventas', 'pedidos', 'produccion'];
 const ord = x => Array.isArray(x) ? x.map(ord) : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((a, k) => (a[k] = ord(x[k]), a), {}) : x;
 const est = o => o ? JSON.stringify(ord(o)) : 'null';
 const KEYC = 'lmd_cache_v1';
@@ -29,11 +29,13 @@ const espera = () => { if (cacheActiva && !listo) { toast(sinRed ? 'Sin conexió
 
 function cargar() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.productos) return migrar(d); } catch (e) {}
-  return { productos: [], entradas: [], ventas: [], pedidos: [] };
+  return { productos: [], entradas: [], ventas: [], pedidos: [], produccion: [] };
 }
 // Datos viejos (stock en rollos) -> stock en gramos
 function migrar(d) {
   d.pedidos = d.pedidos || [];
+  d.produccion = d.produccion || [];
+  (d.productos || []).forEach(p => { if (p.hechos === undefined) p.hechos = 0; });
   (d.productos || []).forEach(p => {
     if (p.gramosPorRollo !== undefined) return;
     const g = p.rollosPorKilo > 0 ? 1000 / p.rollosPorKilo : 0;
@@ -72,8 +74,11 @@ const prod = id => db.productos.find(p => p.id === id);
 const gpr = p => p.gramosPorRollo || 0;
 const fmtG = g => fmt(g) + ' g';
 const itemsDe = x => Array.isArray(x.items) ? x.items : Object.values(x.items || {});
-const apartadoG = p => (db.pedidos || []).filter(x => x.estado === 'pendiente').reduce((a, x) => a + itemsDe(x).filter(i => i.productoId === p.id).reduce((b, i) => b + i.gramos, 0), 0);
-const dispG = p => Math.max(0, r2(p.stockG - apartadoG(p)));
+const apartadoR = p => (db.pedidos || []).filter(x => x.estado === 'pendiente').reduce((a, x) => a + itemsDe(x).filter(i => i.productoId === p.id).reduce((b, i) => b + i.rollos, 0), 0);
+const hechosLibres = p => Math.max(0, r2((p.hechos || 0) - apartadoR(p)));
+const hechosEn = (pid, f) => (db.produccion || []).filter(x => x.productoId === pid && x.fecha === f).reduce((a, x) => a + x.rollos, 0);
+const hechosMes = (pid, ym) => (db.produccion || []).filter(x => x.productoId === pid && x.fecha.slice(0, 7) === ym).reduce((a, x) => a + x.rollos, 0);
+const dispG = p => p.stockG;
 const rollosDisp = p => gpr(p) > 0 ? Math.floor(dispG(p) / gpr(p) + 1e-9) : 0;
 const bajo = p => dispG(p) <= p.minimoG;
 const costoRollo = p => gpr(p) > 0 ? p.costoKilo * gpr(p) / 1000 : 0;
@@ -235,19 +240,21 @@ function vInicio() {
 
 // ===== Stock =====
 function vStock() {
+  const rec = db.produccion.slice().sort((a, b) => a.id < b.id ? 1 : -1).slice(0, 8);
   return '<h2>Inventario</h2><button class="add" onclick="formProducto()">＋ Nuevo producto</button>' +
-    (db.productos.length ? barraFiltro() + '<div id="lista">' + listaStock() + '</div>' : '<div class="empty">Aún no hay productos</div>');
+    (db.productos.length ? barraFiltro() + '<div id="lista">' + listaStock() + '</div>' : '<div class="empty">Aún no hay productos</div>') +
+    (rec.length ? '<h2 style="margin-top:22px">Últimos rollos hechos</h2>' + rec.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.nombre) + '</div><div class="meta">' + fmt(x.rollos) + ' rollos · ' + nombreDia(x.fecha) + ' · ' + fmtG(x.gramos) + '</div></div><button class="btn del" onclick="borrarProduccion(\'' + x.id + '\')">Deshacer</button></div></div>').join('') : '');
 }
 function listaStock() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
   return l.map(p =>
     '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
-    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + (apartadoG(p) > 0 ? '<b>Apartado en pedidos: ' + fmtG(apartadoG(p)) + '</b> (stock físico ' + fmtG(p.stockG) + ')<br>' : '') +
-    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Alcanza para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
+    '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + '<b>Rollos hechos: ' + fmt(p.hechos || 0) + '</b>' + (apartadoR(p) > 0 ? ' (' + fmt(apartadoR(p)) + ' apartados en pedidos)' : '') + ' · hoy ' + fmt(hechosEn(p.id, hoy())) + ' · este mes ' + fmt(hechosMes(p.id, hoy().slice(0, 7))) + '<br>' +
+    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Con ese stock se pueden hacer ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
     (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> (' + fmt(costoRollo(p) > 0 ? gananciaRollo(p) / costoRollo(p) * 100 : 0) + '%) por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
     '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
-    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
+    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">🧆 Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
 }
 
@@ -301,19 +308,20 @@ function guardarProducto(id) {
 }
 function borrarProducto(id) {
   if (espera()) return;
-  const pp = prod(id); if (pp && apartadoG(pp) > 0) return toast('Tiene pedidos pendientes: entrégalos o cancélalos primero');
+  const pp = prod(id); if (pp && apartadoR(pp) > 0) return toast('Tiene pedidos pendientes: entrégalos o cancélalos primero');
   if (!confirm('¿Borrar este producto? Sus ventas ya registradas se conservan.')) return;
   db.productos = db.productos.filter(p => p.id !== id);
   guardar(); render();
 }
 
 // ===== Ingreso por kilos / libras =====
-const gUni = () => $('#i-uni').value === 'lb' ? 500 : 1000;
+const gUni = () => { const u = $('#i-uni').value; return u === 'lb' ? 500 : u === 'g' ? 1 : 1000; };
+const gCosto = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 function formIngreso(id) {
   if (espera()) return;
   const p = prod(id);
   modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Se suma al stock en gramos. Puedes cambiar estos datos en cada ingreso</div>' +
-    '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos (1000 g)</option><option value="lb">Libras (500 g)</option></select>' +
+    '<label>Unidad</label><select id="i-uni" onchange="cambiarUnidad(\'' + id + '\')"><option value="kg">Kilos (1 kilo = 1000 g)</option><option value="lb">Libras (1 libra = 500 g)</option><option value="g">Gramos</option></select>' +
     '<label>Cantidad que llegó</label><input id="i-cant" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
     '<label>Gramos que pesa 1 rollo</label><input id="i-gpr" type="number" inputmode="decimal" value="' + (gpr(p) || '') + '" placeholder="Ej: 33" oninput="prevIngreso(\'' + id + '\')">' +
     '<label id="i-lblc">Costo por kilo ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '">' +
@@ -322,9 +330,10 @@ function formIngreso(id) {
   prevIngreso(id);
 }
 function cambiarUnidad(id) {
-  const p = prod(id), lb = gUni() === 500;
-  $('#i-lblc').textContent = 'Costo por ' + (lb ? 'libra' : 'kilo') + ' ($)';
-  $('#i-costo').value = p.costoKilo ? r2(p.costoKilo * gUni() / 1000) : '';
+  const p = prod(id), u = $('#i-uni').value, b = gCosto();
+  $('#i-lblc').textContent = 'Costo por ' + (b === 500 ? 'libra' : 'kilo') + ' ($)';
+  $('#i-costo').value = p.costoKilo ? r2(p.costoKilo * b / 1000) : '';
+  $('#i-cant').placeholder = u === 'g' ? 'Ej: 1000' : 'Ej: 1';
   prevIngreso(id);
 }
 function prevIngreso(id) {
@@ -335,10 +344,49 @@ function confirmarIngreso(id) {
   const p = prod(id), cant = num($('#i-cant').value), gp = num($('#i-gpr').value);
   if (cant <= 0) return toast('Escribe la cantidad');
   if (gp <= 0) return toast('Escribe cuántos gramos pesa 1 rollo');
-  const g = r2(cant * gUni()), costoKilo = num($('#i-costo').value) * 1000 / gUni();
+  const g = r2(cant * gUni()), costoKilo = num($('#i-costo').value) * 1000 / gCosto();
+  if (g >= 100000 && !confirm('¿Seguro? Vas a ingresar ' + fmt(g) + ' g (' + fmt(g / 1000) + ' kilos).')) return;
   p.stockG = r2(p.stockG + g); p.costoKilo = r2(costoKilo); p.gramosPorRollo = gp;
   db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, cantidad: cant, unidad: $('#i-uni').value, gramos: g, costoKilo: p.costoKilo });
   guardar(); cerrarModal(); render(); toast('+' + fmt(g) + ' g ✅');
+}
+
+// ===== Rollos hechos (producción) =====
+function formProduccion(id) {
+  if (espera()) return;
+  const p = prod(id);
+  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Editar)');
+  modal('<h3>Rollos hechos · ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Descuenta los gramos del stock y suma rollos listos para vender</div>' +
+    '<label>¿Cuántos rollos hiciste?</label><input id="h-cant" type="number" inputmode="decimal" placeholder="Ej: 20" oninput="prevProd(\'' + id + '\')">' +
+    '<label>Día en que los hiciste</label><input id="h-fec" type="date" value="' + hoy() + '" max="' + hoy() + '">' +
+    '<div class="preview" id="h-prev"></div>' +
+    '<button class="btn main full" onclick="confirmarProd(\'' + id + '\')">Registrar rollos hechos</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
+  prevProd(id);
+}
+function prevProd(id) {
+  const p = prod(id), q = num($('#h-cant').value), resto = p.stockG - q * gpr(p);
+  $('#h-prev').textContent = q > 0
+    ? 'Se descuentan ' + fmtG(q * gpr(p)) + ' · quedan ' + fmtG(Math.max(0, resto)) + ' · se podrán hacer ' + fmt(Math.max(0, Math.floor(resto / gpr(p) + 1e-9))) + ' rollos más'
+    : 'Ahora hay ' + fmtG(p.stockG) + ': se pueden hacer ' + rollosDisp(p) + ' rollos';
+}
+function confirmarProd(id) {
+  const p = prod(id), q = num($('#h-cant').value), f = $('#h-fec').value || hoy();
+  if (q <= 0) return toast('Escribe cuántos rollos hiciste');
+  const g = r2(q * gpr(p));
+  if (g > p.stockG + 1e-6) return toast('No alcanza: solo hay para ' + rollosDisp(p) + ' rollos (' + fmtG(p.stockG) + ')');
+  p.stockG = r2(p.stockG - g); p.hechos = r2((p.hechos || 0) + q);
+  db.produccion.push({ id: uid(), fecha: f, productoId: id, nombre: p.nombre, rollos: q, gramos: g });
+  guardar(); cerrarModal(); render(); toast('+' + fmt(q) + ' rollos hechos ✅');
+}
+function borrarProduccion(id) {
+  if (espera()) return;
+  const x = db.produccion.find(y => y.id === id); if (!x) return;
+  const p = prod(x.productoId);
+  if (p && (p.hechos || 0) < x.rollos - 1e-6) return toast('Esos rollos ya se vendieron; no se puede deshacer');
+  if (!confirm('¿Deshacer esta producción? Los gramos vuelven al stock.')) return;
+  if (p) { p.stockG = r2(p.stockG + x.gramos); p.hechos = r2((p.hechos || 0) - x.rollos); }
+  db.produccion = db.produccion.filter(y => y.id !== id);
+  guardar(); render();
 }
 
 // ===== Vender =====
@@ -352,14 +400,13 @@ function vVender() {
 function listaVender() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u · ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</div></div><span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('');
+  return l.map(p => '<div class="item tap" onclick="formVenta(\'' + p.id + '\')"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + money(p.precio) + ' c/u</div></div><span class="pill ' + (hechosLibres(p) <= 0 ? 'low' : '') + '">' + fmt(hechosLibres(p)) + '<br><small>rollos hechos</small></span></div></div>').join('');
 }
 function formVenta(id) {
   if (espera()) return;
   const p = prod(id);
-  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Stock: ' + fmtG(dispG(p)) + ' (≈ ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos) · ' + money(p.precio) + ' c/u</div>' +
+  modal('<h3>' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Rollos hechos para vender: ' + fmt(hechosLibres(p)) + (apartadoR(p) > 0 ? ' (' + fmt(apartadoR(p)) + ' apartados en pedidos)' : '') + ' · ' + money(p.precio) + ' c/u</div>' +
     '<label>Rollos</label><div class="step"><button onclick="ajustarQty(-1,\'' + id + '\')">−</button><input id="v-qty" type="number" inputmode="decimal" value="1" oninput="calcVenta(\'' + id + '\')"><button onclick="ajustarQty(1,\'' + id + '\')">+</button></div>' +
-    '<div class="hint" id="v-g"></div>' +
     '<div class="total"><b id="v-total"></b><span class="pos" id="v-gan"></span></div>' +
     '<button class="btn main full" onclick="registrarVenta(\'' + id + '\')">Registrar venta</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
   calcVenta(id);
@@ -370,26 +417,24 @@ function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
   $('#v-gan').className = q * gananciaRollo(p) < 0 ? 'neg' : 'pos';
-  $('#v-g').textContent = gpr(p) > 0 ? q + (q === 1 ? ' rollo × ' : ' rollos × ') + fmtG(gpr(p)) + ' = se descuentan ' + fmtG(q * gpr(p)) + ' del stock' : '';
   $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir gramos por rollo';
 }
 function registrarVenta(id) {
   const p = prod(id), q = qtyVenta();
   if (q <= 0) return toast('Escribe la cantidad');
-  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Stock → Editar)');
-  const g = r2(q * gpr(p));
-  if (g > dispG(p) + 1e-6) return toast('Solo alcanza para ' + rollosDisp(p) + ' rollos (' + fmtG(dispG(p)) + ')');
+  if (q > hechosLibres(p) + 1e-6) return toast('Solo tienes ' + fmt(hechosLibres(p)) + ' rollos hechos. Registra los rollos hechos en Stock primero');
   const costo = costoRollo(p);
-  db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, gramos: g, precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
-  p.stockG = Math.max(0, r2(p.stockG - g));
+  db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: q, gramos: 0, modo: 'hechos', precio: p.precio, costo, total: q * p.precio, ganancia: q * (p.precio - costo) });
+  p.hechos = r2((p.hechos || 0) - q);
   guardar(); cerrarModal(); render(); toast('Venta registrada ✅'); if (navigator.vibrate) navigator.vibrate(15);
 }
 function borrarVenta(id) {
   if (espera()) return;
   const v = db.ventas.find(x => x.id === id);
   if (v && v.pedidoId) return toast('Viene de un pedido: deshaz la entrega en Pedidos');
-  if (!v || !confirm('¿Deshacer esta venta? El stock se devuelve.')) return;
-  const p = prod(v.productoId); if (p) p.stockG = r2(p.stockG + (v.gramos != null ? v.gramos : v.rollos * gpr(p)));
+  if (!v || !confirm('¿Deshacer esta venta? Los rollos vuelven al stock.')) return;
+  const p = prod(v.productoId);
+  if (p) { if (v.modo === 'hechos') p.hechos = r2((p.hechos || 0) + v.rollos); else p.stockG = r2(p.stockG + (v.gramos != null ? v.gramos : v.rollos * gpr(p))); }
   db.ventas = db.ventas.filter(x => x.id !== id);
   guardar(); render();
 }
@@ -423,7 +468,7 @@ function formPedido() {
   if (espera()) return;
   if (!db.productos.length) return toast('Primero crea un producto en Stock');
   ped = { items: [] };
-  const ops = db.productos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(p => '<option value="' + p.id + '">' + esc(p.nombre) + ' (' + rollosDisp(p).toLocaleString('es-CO') + ' disp.)</option>').join('');
+  const ops = db.productos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(p => '<option value="' + p.id + '">' + esc(p.nombre) + ' (' + fmt(hechosLibres(p)) + ' hechos libres)</option>').join('');
   modal('<h3>Nuevo pedido</h3><div class="sub" style="margin:2px 0 0">Aparta el producto del stock hasta que lo entregues</div>' +
     '<label>Cliente</label><input id="p-cli" placeholder="Nombre del cliente">' +
     '<label>Fecha de entrega (opcional)</label><input id="p-fec" type="date">' +
@@ -440,11 +485,9 @@ function agregarItemPed() {
   const p = prod($('#p-prod').value), q = Math.max(0, num($('#p-qty').value));
   if (!p) return;
   if (q <= 0) return toast('Escribe los rollos');
-  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Stock → Editar)');
-  const ex = ped.items.find(i => i.productoId === p.id), g = r2(q * gpr(p)), libre = dispG(p) - (ex ? ex.gramos : 0);
-  if (g > libre + 1e-6) return toast('Solo quedan ' + Math.max(0, Math.floor(libre / gpr(p) + 1e-9)) + ' rollos disponibles de ' + p.nombre);
-  if (ex) { ex.rollos = r2(ex.rollos + q); ex.gramos = r2(ex.gramos + g); }
-  else ped.items.push({ productoId: p.id, nombre: p.nombre, rollos: q, gramos: g, precio: p.precio });
+  const ex = ped.items.find(i => i.productoId === p.id);
+  if (ex) ex.rollos = r2(ex.rollos + q);
+  else ped.items.push({ productoId: p.id, nombre: p.nombre, rollos: q, gramos: 0, precio: p.precio });
   $('#p-qty').value = 1; pintarItemsPed();
 }
 function quitarItemPed(i) { ped.items.splice(i, 1); pintarItemsPed(); }
@@ -469,13 +512,13 @@ function entregarPedido(id) {
   for (const i of its) {
     const p = prod(i.productoId);
     if (!p) return toast(i.nombre + ' ya no existe en el stock');
-    if (i.gramos > p.stockG + 1e-6) return toast('No alcanza el stock de ' + p.nombre + ' (' + fmtG(p.stockG) + ')');
+    if (i.rollos > (p.hechos || 0) + 1e-6) return toast('Faltan rollos hechos de ' + p.nombre + ': tienes ' + fmt(p.hechos || 0) + ' y el pedido pide ' + fmt(i.rollos));
   }
   if (!confirm('¿Entregar el pedido de ' + x.cliente + '? Se registra como venta de hoy.')) return;
   its.forEach(i => {
     const p = prod(i.productoId), costo = costoRollo(p);
-    db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: i.rollos, gramos: i.gramos, precio: i.precio, costo, total: i.rollos * i.precio, ganancia: i.rollos * (i.precio - costo), pedidoId: x.id });
-    p.stockG = Math.max(0, r2(p.stockG - i.gramos));
+    db.ventas.push({ id: uid(), fecha: hoy(), productoId: p.id, nombre: p.nombre, categoria: catDe(p), rollos: i.rollos, gramos: 0, modo: 'hechos', precio: i.precio, costo, total: i.rollos * i.precio, ganancia: i.rollos * (i.precio - costo), pedidoId: x.id });
+    p.hechos = r2((p.hechos || 0) - i.rollos);
   });
   x.estado = 'entregado'; x.entregadoEn = hoy();
   guardar(); render(); toast('Entregado y registrado como venta ✅'); if (navigator.vibrate) navigator.vibrate(15);
@@ -490,7 +533,10 @@ function deshacerEntrega(id) {
   if (espera()) return;
   const x = db.pedidos.find(y => y.id === id); if (!x) return;
   if (!confirm('¿Deshacer la entrega? Se borran sus ventas y el pedido vuelve a por entregar.')) return;
-  db.ventas.filter(v => v.pedidoId === id).forEach(v => { const p = prod(v.productoId); if (p) p.stockG = r2(p.stockG + (v.gramos || 0)); });
+  db.ventas.filter(v => v.pedidoId === id).forEach(v => {
+    const p = prod(v.productoId); if (!p) return;
+    if (v.modo === 'hechos') p.hechos = r2((p.hechos || 0) + v.rollos); else p.stockG = r2(p.stockG + (v.gramos || 0));
+  });
   db.ventas = db.ventas.filter(v => v.pedidoId !== id);
   x.estado = 'pendiente'; delete x.entregadoEn;
   guardar(); render();
@@ -500,6 +546,17 @@ function deshacerEntrega(id) {
 function cambiarMes(d) {
   const [y, m] = mesSel.split('-').map(Number), n = new Date(y, m - 1 + d, 1);
   mesSel = n.getFullYear() + '-' + p2(n.getMonth() + 1); render();
+}
+function resumenMes(ym) {
+  const pr = db.produccion.filter(x => x.fecha.slice(0, 7) === ym), en = db.entradas.filter(x => x.fecha.slice(0, 7) === ym);
+  const porProd = {}, dias = {}, P = x => (porProd[x.productoId] = porProd[x.productoId] || { n: x.nombre, h: 0, g: 0 });
+  pr.forEach(x => { P(x).h += x.rollos; dias[x.fecha] = dias[x.fecha] || {}; dias[x.fecha][x.nombre] = (dias[x.fecha][x.nombre] || 0) + x.rollos; });
+  en.forEach(x => { P(x).g += x.gramos; });
+  const lista = Object.values(porProd).sort((a, b) => a.n.localeCompare(b.n, 'es'));
+  return '<div class="grid"><div class="bubble"><small>Rollos hechos</small><b>' + fmt(suma(pr, 'rollos')) + '</b></div><div class="bubble"><small>Materia ingresada</small><b>' + fmt(suma(en, 'gramos') / 1000) + ' kg</b></div></div>' +
+    '<div class="sub" style="margin:0 0 6px">Cada mes empieza de cero; lo que queda en stock pasa al mes siguiente.</div>' +
+    '<h2>Producción y materia del mes</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">Hizo ' + fmt(x.h) + ' rollos · ingresó ' + fmtG(x.g) + '</div></div></div></div>').join('') : '<div class="empty">Sin producción ni ingresos este mes</div>') +
+    '<h2>Rollos hechos por día</h2>' + (Object.keys(dias).length ? Object.keys(dias).sort().reverse().map(f => '<div class="item"><div class="row"><div><div class="name cap">' + nombreDia(f) + '</div><div class="meta">' + Object.keys(dias[f]).map(n => fmt(dias[f][n]) + ' × ' + esc(n)).join(' · ') + '</div></div><span class="pill">' + fmt(Object.values(dias[f]).reduce((a, b) => a + b, 0)) + '</span></div></div>').join('') : '<div class="empty">Sin rollos hechos este mes</div>');
 }
 function vGanancias() {
   const vm = ventasMes(mesSel), dias = {}, prods = {};
@@ -514,6 +571,7 @@ function vGanancias() {
   const g = suma(vm, 'ganancia');
   return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(mesSel) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
     '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' total del mes (todos los productos)</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
+    resumenMes(mesSel) +
     '<h2>Ganancia por producto</h2>' +
     (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">' + fmt(x.r) + ' rollos · ' + money(x.t) + ' vendido</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
       '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin ventas este mes</div>') +
@@ -549,7 +607,7 @@ function importar(inp) {
       const d = JSON.parse(r.result);
       if (!d.productos || !d.ventas) throw 0;
       if (!confirm('Esto reemplaza los datos actuales. ¿Continuar?')) return;
-      db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas, pedidos: d.pedidos || [] });
+      db = migrar({ productos: d.productos, entradas: d.entradas || [], ventas: d.ventas, pedidos: d.pedidos || [], produccion: d.produccion || [] });
       guardar(); cerrarModal(); render(); toast('Copia restaurada ✅');
     } catch (e) { toast('Archivo no válido'); }
   };
@@ -678,7 +736,8 @@ function escuchar() {
       productos: Object.values(remoto.productos).map(x => Object.assign({}, x)),
       entradas: Object.values(remoto.entradas).map(x => Object.assign({}, x)),
       ventas: Object.values(remoto.ventas).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1),
-      pedidos: Object.values(remoto.pedidos).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
+      pedidos: Object.values(remoto.pedidos).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1),
+      produccion: Object.values(remoto.produccion).map(x => Object.assign({}, x)).sort((a, b) => a.id < b.id ? -1 : 1)
     });
     listo = true; cacheActiva = false; sinRed = false; guardarCache(); quitarSplash(); clearTimeout(timer); $('#nav').style.display = ''; render();
   }, e => { fbRef = null; listo = false; paso = 'negocio: ' + (e && e.code ? e.code : 'error'); mostrarError(); });
@@ -722,7 +781,7 @@ function cargarFirebase() {
 function iniciar() {
   try { history.replaceState({ v: vista }, ''); } catch (e) {}
   if (!NUBE) { render(); quitarSplash(); return; }
-  local = db; db = { productos: [], entradas: [], ventas: [], pedidos: [] };
+  local = db; db = { productos: [], entradas: [], ventas: [], pedidos: [], produccion: [] };
   let c = null;
   try { c = JSON.parse(localStorage.getItem(KEYC)); } catch (e) {}
   if (c && c.productos) { db = migrar(c); cacheActiva = true; $('#nav').style.display = ''; render(); quitarSplash(); }
