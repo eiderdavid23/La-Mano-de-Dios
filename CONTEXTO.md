@@ -53,6 +53,8 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Categoría con desplegable: Aliños, Salsas, Otro
 - [x] Ganancias: total por producto y total de todos los productos al mes
 - [x] Stock en gramos: ingreso en kilos/libras, gramos por rollo, la venta descuenta gramos
+- [x] Historiales detallados (ventas, pedidos, rollos hechos, ingresos de materia): al tocar uno se ve cliente, fecha, hora, quién lo registró y más
+- [x] Rollos hechos puede pasarse del stock: se registra y avisa que salieron más de lo calculado
 
 ## Pendiente
 - [ ] Definir los gramos por rollo reales de cada producto
@@ -76,3 +78,11 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Vender y pedidos ahora descuentan ROLLOS HECHOS (p.hechos), no gramos. Las ventas nuevas llevan modo:'hechos'; las viejas (sin modo) devolvían gramos al deshacer. Los pedidos pendientes apartan rollos hechos; se pueden crear sin rollos hechos, pero entregar exige tenerlos.
 - Ganancias (por mes): resumen con rollos hechos, materia ingresada, producción por producto y por día. Cada mes empieza de cero; el stock que queda pasa al mes siguiente.
 - Ingreso de materia: unidades Kilos, Libras o Gramos; pregunta si se ingresan 100 kilos o más.
+
+## Cambios parche10
+- Historiales detallados. Ventas, pedidos, rollos hechos e ingresos de materia guardan ahora hora (hora), quién lo registró (por: usuario de la nube, vacío en modo local) y datos extra. Los registros viejos no tienen hora: el detalle dice "No se registró".
+- Tocar un registro abre su detalle (funciones detalleVenta, detallePedido, detalleProd, detalleIngreso). En Ganancias, tocar un día (Día por día o Rollos hechos por día) lista las ventas o la producción de ese día, y desde ahí se abre cada detalle con "Volver al día".
+- Venta: campo opcional Cliente en Vender (v.cliente). Venta por pedido guarda cliente, hora de entrega, unidades y rollos hechos que quedaron; el detalle también muestra cuándo se hizo el pedido, la entrega prometida y la nota.
+- Pedido: guarda hora (cuándo se anotó) y por; al entregar guarda entregadoHora y entregadoPor. El detalle muestra puntualidad (a tiempo, adelantado o tarde) y la ganancia del pedido.
+- Stock: nueva lista "Últimos ingresos de materia" (sin deshacer).
+- Rollos hechos: se pueden registrar más rollos de los que da el stock. El stock queda en 0 g y se guarda excesoG (gramos que faltaban), excesoR (rollos de más) y alcanzaba (rollos que alcanzaban). Sale aviso rojo "Salieron más de lo calculado" al escribir, en el aviso al registrar, en la lista y en el detalle. Deshacer devuelve solo los gramos que sí habían salido del stock (gramos - excesoG).
