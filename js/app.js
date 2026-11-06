@@ -150,6 +150,13 @@ const TABS = [
   ['vender', ic('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 11.5a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 7H6"/>'), 'Vender'],
   ['ganancias', ic('<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>'), 'Ganancias']
 ];
+const ICO = {
+  rollos: ic('<path d="M6 5l1.5-2L9 5l1.5-2L12 5l1.5-2L15 5l1.5-2L18 5v14l-1.5 2-1.5-2-1.5 2-1.5-2-1.5 2L9 19l-1.5 2L6 19z"/><path d="M9.5 10h5M10.5 14h3"/>'),
+  pedidos: ic('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>'),
+  usuarios: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.4 0 4 1.9 4 4.5"/>'),
+  respaldo: ic('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 19h16"/>'),
+  salir: ic('<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/><path d="M15 8l4 4-4 4M19 12H9"/>')
+};
 let vistaPrev = null;
 // Los números grandes cuentan hacia arriba al cambiar de pantalla
 function animarNumeros(cambio) {
@@ -196,10 +203,10 @@ function htmlMenu() {
   const pend = pendPed().length, esp = adm && pendientes() ? ' (' + pendientes() + ' en espera)' : '';
   const it = (ico, t, f, extra) => '<button class="mi" onclick="' + f + '"><span>' + ico + '</span>' + t + (extra || '') + '</button>';
   return '<div class="dh"><b>Condimentos la Mano de Dios</b><small>' + (NUBE ? esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') : 'Datos en este teléfono') + '</small></div>' +
-    it('📋', 'Pedidos', 'menuPedidos()', pend ? '<em>' + pend + '</em>' : '') +
-    (adm ? it('👥', 'Usuarios' + esp, 'menuModal(abrirUsuarios)') : '') +
-    (!NUBE ? it('💾', 'Respaldo', 'menuModal(abrirAjustes)') : '') +
-    (NUBE ? it('🚪', 'Cerrar sesión', 'menuSalir()') : '');
+    it(ICO.pedidos, 'Pedidos', 'menuPedidos()', pend ? '<em>' + pend + '</em>' : '') +
+    (adm ? it(ICO.usuarios, 'Usuarios' + esp, 'menuModal(abrirUsuarios)') : '') +
+    (!NUBE ? it(ICO.respaldo, 'Respaldo', 'menuModal(abrirAjustes)') : '') +
+    (NUBE ? it(ICO.salir, 'Cerrar sesión', 'menuSalir()') : '');
 }
 function menuPedidos() {
   if (vista === 'pedidos') { cerrarMenu(); return; }
@@ -260,10 +267,10 @@ function listaStock() {
   return l.map(p =>
     '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div>' +
     '<div class="meta"><span class="tag">' + esc(catDe(p)) + '</span><br>' + '<b>Rollos hechos: ' + fmt(p.hechos || 0) + '</b>' + (apartadoR(p) > 0 ? ' (' + fmt(apartadoR(p)) + ' apartados en pedidos)' : '') + ' · hoy ' + fmt(hechosEn(p.id, hoy())) + ' · este mes ' + fmt(hechosMes(p.id, hoy().slice(0, 7))) + '<br>' +
-    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>Con ese stock se pueden hacer ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos · ≈ ' + Math.floor(rollosDisp(p) * p.unidadesRollo).toLocaleString('es-CO') + ' unidades<br>' : '') +
+    (gpr(p) > 0 ? fmtG(gpr(p)) + ' por rollo · 1 kilo ≈ ' + fmt(1000 / gpr(p)) + ' rollos · 1 libra ≈ ' + fmt(500 / gpr(p)) + '<br>' : '') +
     (gpr(p) > 0 ? 'Venta ' + money(p.precio) + ' · Costo ' + money(costoRollo(p)) + ' · Gana <b class="' + (gananciaRollo(p) >= 0 ? 'pos' : 'neg') + '">' + money(gananciaRollo(p)) + '</b> (' + fmt(costoRollo(p) > 0 ? gananciaRollo(p) / costoRollo(p) * 100 : 0) + '%) por rollo' : 'Venta ' + money(p.precio) + ' · <b class="neg">Falta definir los gramos por rollo</b>') + '</div></div>' +
     '<span class="pill ' + (bajo(p) ? 'low' : '') + '">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div>' +
-    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">🧆 Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
+    '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">' + ICO.rollos + ' Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>'
   ).join('');
 }
 
@@ -415,7 +422,7 @@ function detalleProd(id, vol) {
   const x = db.produccion.find(y => y.id === id); if (!x) return;
   const p = prod(x.productoId), exc = x.excesoG || 0, und = p && p.unidadesRollo ? r2(x.rollos * p.unidadesRollo) : null;
   const gr = x.gramosRollo || (x.rollos ? r2(x.gramos / x.rollos) : 0);
-  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">🧆 Rollos hechos' + (exc > 0 ? ' · ⚠️ salieron más de lo calculado' : '') + '</div>' +
+  modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Rollos hechos' + (exc > 0 ? ' · ⚠️ salieron más de lo calculado' : '') + '</div>' +
     '<div class="dsec">Producción</div>' +
     filaD('Rollos hechos', fmt(x.rollos)) + filaD('Unidades', und != null ? fmt(und) : '') +
     filaD('Día en que se hicieron', diaLargo(x.fecha), 1) +
@@ -706,7 +713,7 @@ function abrirAjustes() {
   }
   const adm = miPerfil && miPerfil.admin;
   modal('<h3>Ajustes</h3><div class="sub" style="margin:2px 0 10px">Sesión: ' + esc(usuarioActual()) + (adm ? ' 👑 administrador' : '') + '<br>Tus datos se guardan en la nube automáticamente.</div>' +
-    (adm ? '<button class="btn main full" onclick="abrirUsuarios()">👥 Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
+    (adm ? '<button class="btn main full" onclick="abrirUsuarios()">' + ICO.usuarios + ' Usuarios' + (pendientes() ? ' (' + pendientes() + ' en espera)' : '') + '</button>' : '') +
     '<button class="btn del full" style="margin-top:14px" onclick="salir()">Cerrar sesión</button>' +
     '<button class="btn full" style="margin-top:14px" onclick="cerrarModal()">Cerrar</button>');
 }

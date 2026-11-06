@@ -127,3 +127,6 @@ body.menu-on #drawer{transform:none}
 .tag.warn{background:var(--badbg);color:var(--bad)}
 .preview.warn{background:var(--badbg);color:var(--bad)}
 .preview small{display:block;font:600 .8rem system-ui,sans-serif;margin-top:6px;line-height:1.45}
+
+.mi span{display:grid;place-items:center;font-size:1rem}
+.btn .ic{width:18px;height:18px;vertical-align:-4px;margin-right:4px}

@@ -55,6 +55,8 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Stock en gramos: ingreso en kilos/libras, gramos por rollo, la venta descuenta gramos
 - [x] Historiales detallados (ventas, pedidos, rollos hechos, ingresos de materia): al tocar uno se ve cliente, fecha, hora, quién lo registró y más
 - [x] Rollos hechos puede pasarse del stock: se registra y avisa que salieron más de lo calculado
+- [x] Sin emojis en el menú lateral ni en el botón Rollos hechos: ahora son iconos de línea (ICO en app.js)
+- [x] Quitada la línea "Con ese stock se pueden hacer N rollos · ≈ N unidades" de cada producto en Stock
 
 ## Pendiente
 - [ ] Definir los gramos por rollo reales de cada producto
@@ -86,3 +88,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Pedido: guarda hora (cuándo se anotó) y por; al entregar guarda entregadoHora y entregadoPor. El detalle muestra puntualidad (a tiempo, adelantado o tarde) y la ganancia del pedido.
 - Stock: nueva lista "Últimos ingresos de materia" (sin deshacer).
 - Rollos hechos: se pueden registrar más rollos de los que da el stock. El stock queda en 0 g y se guarda excesoG (gramos que faltaban), excesoR (rollos de más) y alcanzaba (rollos que alcanzaban). Sale aviso rojo "Salieron más de lo calculado" al escribir, en el aviso al registrar, en la lista y en el detalle. Deshacer devuelve solo los gramos que sí habían salido del stock (gramos - excesoG).
+
+## Cambios parche11
+- Stock: quitada la línea "Con ese stock se pueden hacer N rollos · ≈ N unidades" de cada producto.
+- Iconos: el botón "Rollos hechos" y los items del menú lateral (Pedidos, Usuarios, Respaldo, Cerrar sesión) usan iconos SVG de línea, igual que la barra de abajo. Están en el objeto ICO de app.js (se crean con ic()). Regla: no usar emojis para botones ni menús; usar ic() con trazo.
