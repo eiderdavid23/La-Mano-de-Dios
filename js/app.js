@@ -281,7 +281,7 @@ function vInicio() {
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
     '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtG(dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmtV(p, dispG(p)) + '<br><small>' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small></span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en Stock</div>' : '');
 }
 
@@ -303,13 +303,13 @@ function listaStock() {
   return l.map(p => {
     const g = gpr(p), ga = gananciaRollo(p), cr = costoRollo(p), ap = apartadoR(p);
     const mas = kv('Rollos hechos hoy', fmt(hechosEn(p.id, hoy()))) + kv('Rollos hechos este mes', fmt(hechosMes(p.id, hoy().slice(0, 7)))) +
-      (g > 0 ? kv('Peso de cada rollo', fmtG(g)) + kv('Unidades por rollo', fmt(p.unidadesRollo)) + kv('Rollos por kilo', fmt(1000 / g)) + kv('Rollos por libra', fmt(500 / g)) + kv('Precio de venta por rollo', money(p.precio)) + kv('Costo por rollo', money(cr)) : kv('Precio de venta por rollo', money(p.precio)));
+      (g > 0 ? kv(unidS(p) ? 'Lo que lleva cada rollo' : 'Peso de cada rollo', fmtV(p, g)) + (unidS(p) && p.pesoRolloG ? kv('Peso de cada rollo', fmtG(p.pesoRolloG)) : '') + kv('Unidades por rollo', fmt(p.unidadesRollo)) + (unidS(p) ? kv('Rollos por litro', fmt(1000 / g)) : kv('Rollos por kilo', fmt(1000 / g)) + kv('Rollos por libra', fmt(500 / g))) + kv('Precio de venta por rollo', money(p.precio)) + kv('Costo por rollo', money(cr)) : kv('Precio de venta por rollo', money(p.precio)));
     return '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span></div></div>' +
-      '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>En bodega</small>' + fmtG(dispG(p)) + (g > 0 ? '<small>para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small>' : '') + '</span></div>' +
+      '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>En bodega</small>' + fmtV(p, dispG(p)) + (g > 0 ? '<small>para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small>' : '') + '</span></div>' +
       '<div class="lis"><span>Listos para vender</span><b>' + fmt(p.hechos || 0) + ' rollos' + (ap > 0 ? ' <small>(' + fmt(ap) + ' apartados en pedidos)</small>' : '') + '</b></div>' +
       (g > 0
         ? '<div class="gan ' + gCls(ga) + '"><span>' + gLbl(ga) + ' por rollo</span><b>' + money(Math.abs(ga)) + ' <small>(' + fmt(cr > 0 ? ga / cr * 100 : 0) + ' % sobre el costo)</small></b></div>'
-        : '<div class="gan neg"><span>Falta definir los gramos por rollo. Toca Editar.</span></div>') +
+        : '<div class="gan neg"><span>' + (unidS(p) ? 'Falta definir el peso del rollo y del litro (o los rollos por caneca). Toca Editar.' : 'Falta definir los gramos por rollo. Toca Editar.') + '</span></div>') +
       '<details class="mas"' + (stkAb[p.id] ? ' open' : '') + ' ontoggle="stkAb[\'' + p.id + '\']=this.open"><summary>Ver más datos</summary>' + mas + '</details>' +
       '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar ' + (esSalsa(catDe(p)) ? 'canecas' : 'kilos/libras') + '</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">' + ICO.rollos + ' Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>';
   }).join('');
@@ -327,34 +327,52 @@ function formProducto(id) {
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Clavitos">' +
     '<label>Categoría</label><select id="f-cat" onchange="cambiarCatForm()">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades por rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + p.unidadesRollo + '">' +
-    '<label>Gramos que pesa 1 rollo</label><input id="f-gpr" type="number" inputmode="decimal" value="' + p.gramosPorRollo + '" placeholder="Ej: 33" oninput="hintGr();desdePrecio()"><div class="hint" id="f-hint"></div>' +
+    '<label id="f-l-gpr">Gramos que pesa 1 rollo</label><input id="f-gpr" type="number" inputmode="decimal" value="' + (unidS(p) ? (p.pesoRolloG || '') : p.gramosPorRollo) + '" placeholder="Ej: 33" oninput="hintGr();desdePrecio()"><div class="hint" id="f-hint"></div>' +
     '<label>Precio de venta por rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + p.precio + '" oninput="desdePrecio()">' +
     '<div id="f-b-ali"' + (esSalsa(p.categoria || (id ? 'Otro' : 'Aliños')) ? ' style="display:none"' : '') + '><label>Costo por kilo ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + p.costoKilo + '" placeholder="Lo que pagas por 1 kilo" oninput="desdePrecio()"></div>' +
-    '<div id="f-b-sal"' + (esSalsa(p.categoria || (id ? 'Otro' : 'Aliños')) ? '' : ' style="display:none"') + '><label>Kilos que trae cada caneca</label><input id="f-kc" type="number" inputmode="decimal" value="' + (p.kilosCaneca || '') + '" placeholder="Ej: 20" oninput="desdePrecio()"><label>Costo por caneca ($)</label><input id="f-costoc" type="number" inputmode="decimal" value="' + (p.kilosCaneca && p.costoKilo ? r2(p.costoKilo * p.kilosCaneca) : '') + '" placeholder="Lo que pagas por 1 caneca" oninput="desdePrecio()"></div>' +
+    '<div id="f-b-sal"' + (esSalsa(p.categoria || (id ? 'Otro' : 'Aliños')) ? '' : ' style="display:none"') + '><label>Litros que trae cada caneca</label><input id="f-kc" type="number" inputmode="decimal" value="' + (p.kilosCaneca || '') + '" placeholder="Ej: 20" oninput="desdePrecio()"><label>Costo por caneca ($)</label><input id="f-costoc" type="number" inputmode="decimal" value="' + (p.kilosCaneca && p.costoKilo ? r2(p.costoKilo * p.kilosCaneca) : '') + '" placeholder="Lo que pagas por 1 caneca" oninput="desdePrecio()"><label>Gramos que pesa 1 litro de salsa</label><input id="f-gl" type="number" inputmode="decimal" value="' + (p.gramosLitro || '') + '" placeholder="Pesa 1 litro en la balanza" oninput="desdePrecio()"><label>O: rollos que salen de 1 caneca</label><input id="f-rc" type="number" inputmode="decimal" value="' + (p.rollosCaneca || '') + '" placeholder="Si lo sabes, sin pesar nada" oninput="desdePrecio()"></div>' +
     '<label>% de ganancia sobre el costo</label><input id="f-pct" type="number" inputmode="decimal" placeholder="Ej: 40" oninput="desdePct()"><div class="hint" id="f-pcthint"></div>' +
-    '<label>Avisar cuando queden (gramos)</label><input id="f-min" type="number" inputmode="decimal" value="' + p.minimoG + '">' +
-    '<label>' + (id ? 'Stock actual' : 'Stock inicial') + ' (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.stockG || 0) + '">' +
+    '<label id="f-l-min">Avisar cuando queden (gramos)</label><input id="f-min" type="number" inputmode="decimal" value="' + (unidS(p) ? r2(p.minimoG / 1000) : p.minimoG) + '">' +
+    '<label id="f-l-stock" data-b="' + (id ? 'Stock actual' : 'Stock inicial') + '">' + (id ? 'Stock actual' : 'Stock inicial') + ' (gramos)</label><input id="f-stock" type="number" inputmode="decimal" value="' + (unidS(p) ? r2((p.stockG || 0) / 1000) : (p.stockG || 0)) + '">' +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
+  catEsSalsa = esSalsa($('#f-cat').value); etiquetasForm();
   hintGr(); desdePrecio();
 }
 const esSalsa = c => String(c || '').trim().toLowerCase() === 'salsas';
 const uniTxt = u => u === 'ca' ? 'canecas' : (u || 'kg');
+// Las salsas guardan el stock en mililitros (1 litro = 1000) pero se muestran en litros
+const unidS = p => !!p && esSalsa(catDe(p));
+const fmtV = (p, v) => unidS(p) ? (Math.abs(v) >= 1000 ? fmt(v / 1000) + ' L' : fmt(v) + ' ml') : fmtG(v);
 const costoKiloForm = () => {
   if (esSalsa($('#f-cat').value)) { const kc = num($('#f-kc').value); return kc > 0 ? num($('#f-costoc').value) / kc : 0; }
   return num($('#f-costo').value);
 };
+let catEsSalsa = false;
+function etiquetasForm() {
+  const s = esSalsa($('#f-cat').value);
+  $('#f-l-min').textContent = s ? 'Avisar cuando queden (litros)' : 'Avisar cuando queden (gramos)';
+  $('#f-l-stock').textContent = $('#f-l-stock').dataset.b + (s ? ' (litros)' : ' (gramos)');
+}
 function cambiarCatForm() {
   const s = esSalsa($('#f-cat').value);
   $('#f-b-sal').style.display = s ? '' : 'none'; $('#f-b-ali').style.display = s ? 'none' : '';
-  desdePrecio();
+  if (s !== catEsSalsa) {
+    ['#f-stock', '#f-min'].forEach(q => { const v = num($(q).value); if (v) $(q).value = r2(s ? v / 1000 : v * 1000); });
+    catEsSalsa = s;
+  }
+  etiquetasForm(); hintGr(); desdePrecio();
 }
-const costoForm = () => costoKiloForm() * num($('#f-gpr').value) / 1000;
+// ml que lleva 1 rollo: si dices cuántos rollos salen de 1 caneca, sale de ahí; si no, del peso del rollo y del peso de 1 litro
+const mlRollo = (gr, gl, litros, rollos) => rollos > 0 && litros > 0 ? litros * 1000 / rollos : (gr > 0 && gl > 0 ? gr / gl * 1000 : 0);
+const gprForm = () => esSalsa($('#f-cat').value) ? mlRollo(num($('#f-gpr').value), num($('#f-gl').value), num($('#f-kc').value), num($('#f-rc').value)) : num($('#f-gpr').value);
+const costoForm = () => costoKiloForm() * gprForm() / 1000;
 function desdePct() {
   const c = costoForm(), t = $('#f-pct').value;
   if (c > 0 && t !== '') $('#f-precio').value = Math.round(c * (1 + num(t) / 100) / 50) * 50;
   infoPct();
 }
 function desdePrecio() {
+  hintGr();
   const c = costoForm(), pr = num($('#f-precio').value);
   $('#f-pct').value = c > 0 ? Math.round((pr - c) / c * 1000) / 10 : '';
   infoPct();
@@ -365,15 +383,21 @@ function infoPct() {
 }
 function hintGr() {
   const g = num($('#f-gpr').value);
+  if (esSalsa($('#f-cat').value)) {
+    const ml = gprForm(), kc = num($('#f-kc').value);
+    $('#f-hint').textContent = ml > 0 ? '1 rollo ≈ ' + fmt(ml) + ' ml · 1 litro ≈ ' + fmt(1000 / ml) + ' rollos' + (kc > 0 ? ' · 1 caneca ≈ ' + fmt(kc * 1000 / ml) + ' rollos' : '') : 'Escribe cuánto pesa 1 rollo y 1 litro de salsa, o cuántos rollos salen de 1 caneca.';
+    return;
+  }
   $('#f-hint').textContent = g > 0 ? '1 kilo ≈ ' + fmt(1000 / g) + ' rollos · 1 libra (500 g) ≈ ' + fmt(500 / g) + ' rollos' : 'Pesa un rollo y escribe cuántos gramos tiene. Así sabes cuántos rollos salen por kilo.';
 }
 function guardarProducto(id) {
   const nombre = $('#f-nombre').value.trim();
   if (!nombre) return toast('Escribe el nombre');
-  if (esSalsa($('#f-cat').value) && num($('#f-costoc').value) > 0 && num($('#f-kc').value) <= 0) return toast('Escribe cuántos kilos trae la caneca');
-  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: num($('#f-gpr').value), precio: num($('#f-precio').value), costoKilo: costoKiloForm(), kilosCaneca: num($('#f-kc').value), minimoG: num($('#f-min').value), stockG: r2(num($('#f-stock').value)) };
+  if (esSalsa($('#f-cat').value) && num($('#f-costoc').value) > 0 && num($('#f-kc').value) <= 0) return toast('Escribe cuántos litros trae la caneca');
+  const fx = esSalsa($('#f-cat').value) ? 1000 : 1, fmtU = v => fmtV(fx === 1000 ? { categoria: 'Salsas' } : {}, v);
+  const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, gramosPorRollo: gprForm() || (fx === 1000 && id ? (prod(id).gramosPorRollo || 0) : 0), pesoRolloG: fx === 1000 ? num($('#f-gpr').value) : 0, gramosLitro: num($('#f-gl').value), rollosCaneca: num($('#f-rc').value), precio: num($('#f-precio').value), costoKilo: costoKiloForm(), kilosCaneca: num($('#f-kc').value), minimoG: r2(num($('#f-min').value) * fx), stockG: r2(num($('#f-stock').value) * fx) };
   if (id) {
-    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['gramosPorRollo', 'Gramos por rollo', fmtG], ['kilosCaneca', 'Kilos por caneca', fmt], ['precio', 'Precio de venta', money], ['costoKilo', 'Costo por kilo', money], ['minimoG', 'Mínimo en bodega', fmtG], ['stockG', 'Gramos en bodega', fmtG]];
+    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['gramosPorRollo', fx === 1000 ? 'Mililitros por rollo' : 'Gramos por rollo', fmtU], ['kilosCaneca', 'Litros por caneca', fmt], ['precio', 'Precio de venta', money], ['costoKilo', 'Costo por kilo', money], ['minimoG', 'Mínimo en bodega', fmtU], ['stockG', fx === 1000 ? 'Litros en bodega' : 'Gramos en bodega', fmtU]];
     const cb = CP.filter(c => (o[c[0]] || 0) !== (d[c[0]] || 0)).map(c => c[1] + ': ' + c[2](o[c[0]] || 0) + ' → ' + c[2](d[c[0]] || 0));
     Object.assign(prod(id), d);
     if (cb.length) anotar('producto_editado', 'Editó el producto ' + nombre, cb);
@@ -394,16 +418,19 @@ function borrarProducto(id) {
 
 // ===== Ingreso por kilos / libras =====
 const enCaneca = () => !$('#i-uni');
+const gpIngreso = () => enCaneca() ? mlRollo(num($('#i-gpr').value), num($('#i-gl').value), num($('#i-kc').value), num($('#i-rc').value)) : num($('#i-gpr').value);
 const gUni = () => { if (enCaneca()) return num($('#i-kc').value) * 1000; const u = $('#i-uni').value; return u === 'lb' ? 500 : u === 'g' ? 1 : 1000; };
 const gCosto = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 function formIngreso(id) {
   if (espera()) return;
   const p = prod(id);
   if (esSalsa(catDe(p))) {
-    modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Las salsas se compran por caneca. Se suma al stock en gramos (1 kilo = 1000 g)</div>' +
+    modal('<h3>Ingresar ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Las salsas se compran por caneca. Se suma al stock en litros</div>' +
       '<label>Canecas que llegaron</label><input id="i-cant" type="number" inputmode="decimal" placeholder="Ej: 1" oninput="prevIngreso(\'' + id + '\')">' +
-      '<label>Kilos que trae cada caneca</label><input id="i-kc" type="number" inputmode="decimal" value="' + (p.kilosCaneca || '') + '" placeholder="Ej: 20" oninput="prevIngreso(\'' + id + '\')">' +
-      '<label>Gramos que pesa 1 rollo</label><input id="i-gpr" type="number" inputmode="decimal" value="' + (gpr(p) || '') + '" placeholder="Ej: 33" oninput="prevIngreso(\'' + id + '\')">' +
+      '<label>Litros que trae cada caneca</label><input id="i-kc" type="number" inputmode="decimal" value="' + (p.kilosCaneca || '') + '" placeholder="Ej: 20" oninput="prevIngreso(\'' + id + '\')">' +
+      '<label>Gramos que pesa 1 litro de salsa</label><input id="i-gl" type="number" inputmode="decimal" value="' + (p.gramosLitro || '') + '" placeholder="Pesa 1 litro en la balanza" oninput="prevIngreso(\'' + id + '\')">' +
+      '<label>Gramos que pesa 1 rollo</label><input id="i-gpr" type="number" inputmode="decimal" value="' + (p.pesoRolloG || '') + '" placeholder="Ej: 370" oninput="prevIngreso(\'' + id + '\')">' +
+      '<label>O: rollos que salen de 1 caneca</label><input id="i-rc" type="number" inputmode="decimal" value="' + (p.rollosCaneca || '') + '" placeholder="Si lo sabes, sin pesar nada" oninput="prevIngreso(\'' + id + '\')">' +
       '<label>Costo por caneca ($)</label><input id="i-costo" type="number" inputmode="decimal" value="' + (p.kilosCaneca && p.costoKilo ? r2(p.costoKilo * p.kilosCaneca) : '') + '" placeholder="Lo que pagas por 1 caneca">' +
       '<div class="preview" id="i-prev"></div>' +
       '<button class="btn main full" onclick="confirmarIngreso(\'' + id + '\')">Agregar al stock</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
@@ -426,27 +453,27 @@ function cambiarUnidad(id) {
   prevIngreso(id);
 }
 function prevIngreso(id) {
-  const p = prod(id), g = num($('#i-cant').value) * gUni(), gp = num($('#i-gpr').value);
-  $('#i-prev').textContent = '= ' + fmt(g) + ' g' + (gp > 0 ? ' · ≈ ' + fmt(Math.floor(g / gp)) + ' rollos' : '') + ' · stock queda en ' + fmtG(dispG(p) + g);
+  const p = prod(id), g = num($('#i-cant').value) * gUni(), gp = gpIngreso();
+  $('#i-prev').textContent = '= ' + fmtV(p, g) + (gp > 0 ? ' · ≈ ' + fmt(Math.floor(g / gp)) + ' rollos' + (enCaneca() ? ' (cada rollo ≈ ' + fmt(gp) + ' ml)' : '') : '') + ' · stock queda en ' + fmtV(p, dispG(p) + g);
 }
 function confirmarIngreso(id) {
-  const p = prod(id), cant = num($('#i-cant').value), gp = num($('#i-gpr').value);
+  const p = prod(id), cant = num($('#i-cant').value), gp = gpIngreso();
   if (cant <= 0) return toast('Escribe la cantidad');
-  if (gp <= 0) return toast('Escribe cuántos gramos pesa 1 rollo');
-  if (enCaneca() && num($('#i-kc').value) <= 0) return toast('Escribe cuántos kilos trae la caneca');
+  if (gp <= 0) return toast(enCaneca() ? 'Escribe el peso del litro y del rollo, o cuántos rollos salen de 1 caneca' : 'Escribe cuántos gramos pesa 1 rollo');
+  if (enCaneca() && num($('#i-kc').value) <= 0) return toast('Escribe cuántos litros trae la caneca');
   const g = r2(cant * gUni()), costoKilo = enCaneca() ? num($('#i-costo').value) / num($('#i-kc').value) : num($('#i-costo').value) * 1000 / gCosto();
-  if (g >= 100000 && !confirm('¿Seguro? Vas a ingresar ' + fmt(g) + ' g (' + fmt(g / 1000) + ' kilos).')) return;
-  p.stockG = r2(p.stockG + g); p.costoKilo = r2(costoKilo); p.gramosPorRollo = gp; if (enCaneca()) p.kilosCaneca = num($('#i-kc').value);
+  if (g >= 100000 && !confirm('¿Seguro? Vas a ingresar ' + (enCaneca() ? fmt(g / 1000) + ' litros.' : fmt(g) + ' g (' + fmt(g / 1000) + ' kilos).'))) return;
+  p.stockG = r2(p.stockG + g); p.costoKilo = r2(costoKilo); p.gramosPorRollo = gp; if (enCaneca()) { p.kilosCaneca = num($('#i-kc').value); p.gramosLitro = num($('#i-gl').value); p.pesoRolloG = num($('#i-gpr').value); p.rollosCaneca = num($('#i-rc').value); }
   db.entradas.push({ id: uid(), fecha: hoy(), productoId: id, nombre: p.nombre, hora: ahora(), por: quien(), cantidad: cant, unidad: enCaneca() ? 'ca' : $('#i-uni').value, kilosCaneca: enCaneca() ? num($('#i-kc').value) : 0, gramos: g, costoKilo: p.costoKilo, gramosRollo: gp, stockDespuesG: p.stockG });
-  guardar(); cerrarModal(); render(); toast('+' + fmt(g) + ' g');
+  guardar(); cerrarModal(); render(); toast('+' + fmtV(p, g));
 }
 
 // ===== Rollos hechos (producción) =====
 function formProduccion(id) {
   if (espera()) return;
   const p = prod(id);
-  if (!(gpr(p) > 0)) return toast('Primero define los gramos por rollo (Editar)');
-  modal('<h3>Rollos hechos · ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Descuenta los gramos del stock y suma rollos listos para vender. Si salen más rollos de los que daba el stock, igual los puedes registrar.</div>' +
+  if (!(gpr(p) > 0)) return toast(unidS(p) ? 'Primero define el peso del rollo y del litro (Editar)' : 'Primero define los gramos por rollo (Editar)');
+  modal('<h3>Rollos hechos · ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Descuenta ' + (unidS(p) ? 'los litros' : 'los gramos') + ' del stock y suma rollos listos para vender. Si salen más rollos de los que daba el stock, igual los puedes registrar.</div>' +
     '<label>¿Cuántos rollos hiciste?</label><input id="h-cant" type="number" inputmode="decimal" placeholder="Ej: 20" oninput="prevProd(\'' + id + '\')">' +
     '<label>Día en que los hiciste</label><input id="h-fec" type="date" value="' + hoy() + '" max="' + hoy() + '">' +
     '<div class="preview" id="h-prev"></div>' +
@@ -457,13 +484,13 @@ function prevProd(id) {
   const p = prod(id), q = num($('#h-cant').value), resto = p.stockG - q * gpr(p), el = $('#h-prev');
   if (q > 0 && resto < -1e-6) {
     el.classList.add('warn');
-    el.innerHTML = '' + ICO.alerta + ' Salieron más de lo calculado<small>Con el stock alcanzaba para ' + rollosDisp(p) + ' rollos y estás registrando ' + fmt(q) + ' (' + fmt(r2(q - rollosDisp(p))) + ' de más, ≈ ' + fmtG(-resto) + ' que no estaban en el stock). El stock queda en 0 g.</small>';
+    el.innerHTML = '' + ICO.alerta + ' Salieron más de lo calculado<small>Con el stock alcanzaba para ' + rollosDisp(p) + ' rollos y estás registrando ' + fmt(q) + ' (' + fmt(r2(q - rollosDisp(p))) + ' de más, ≈ ' + fmtV(p, -resto) + ' que no estaban en el stock). El stock queda en ' + (unidS(p) ? '0 L' : '0 g') + '.</small>';
     return;
   }
   el.classList.remove('warn');
   el.textContent = q > 0
-    ? 'Se descuentan ' + fmtG(q * gpr(p)) + ' · quedan ' + fmtG(Math.max(0, resto)) + ' · se podrán hacer ' + fmt(Math.max(0, Math.floor(resto / gpr(p) + 1e-9))) + ' rollos más'
-    : 'Ahora hay ' + fmtG(p.stockG) + ': se pueden hacer ' + rollosDisp(p) + ' rollos';
+    ? 'Se descuentan ' + fmtV(p, q * gpr(p)) + ' · quedan ' + fmtV(p, Math.max(0, resto)) + ' · se podrán hacer ' + fmt(Math.max(0, Math.floor(resto / gpr(p) + 1e-9))) + ' rollos más'
+    : 'Ahora hay ' + fmtV(p, p.stockG) + ': se pueden hacer ' + rollosDisp(p) + ' rollos';
 }
 function confirmarProd(id) {
   const p = prod(id), q = num($('#h-cant').value), f = $('#h-fec').value || hoy();
@@ -479,7 +506,7 @@ function borrarProduccion(id) {
   const x = db.produccion.find(y => y.id === id); if (!x) return;
   const p = prod(x.productoId);
   if (p && (p.hechos || 0) < x.rollos - 1e-6) return toast('Esos rollos ya se vendieron; no se puede deshacer');
-  if (!confirm('¿Deshacer esta producción? Los gramos vuelven al stock.')) return;
+  if (!confirm('¿Deshacer esta producción? Lo que se gastó vuelve al stock.')) return;
   if (p) { p.stockG = r2(p.stockG + x.gramos - (x.excesoG || 0)); p.hechos = r2((p.hechos || 0) - x.rollos); }
   anotar('rollos_deshechos', 'Deshizo ' + fmt(x.rollos) + ' rollos hechos de ' + x.nombre);
   db.produccion = db.produccion.filter(y => y.id !== id);
@@ -503,9 +530,9 @@ function detalleProd(id, vol) {
     filaD('Hora del registro', x.hora ? fmtHora(x.hora) : 'No se registró (registro antiguo)') +
     filaD('Registrado por', x.por ? esc(x.por) : '') +
     '<div class="dsec">Materia</div>' +
-    filaD('Gramos por rollo', gr ? fmtG(gr) : '') + filaD('Materia usada', fmtG(x.gramos)) +
-    (x.quedaronG != null ? filaD('Quedó en el stock', fmtG(x.quedaronG)) : '') +
-    (exc > 0 ? '<div class="dsec warn">' + ICO.alerta + ' Salieron más de lo calculado</div>' + filaD('El stock alcanzaba para', fmt(x.alcanzaba || 0) + ' rollos') + filaD('Salieron de más', fmt(x.excesoR || 0) + ' rollos') + filaD('Materia que no estaba en el stock', fmtG(exc)) : '') +
+    filaD(unidS(p) ? 'Mililitros por rollo' : 'Gramos por rollo', gr ? fmtV(p, gr) : '') + filaD('Materia usada', fmtV(p, x.gramos)) +
+    (x.quedaronG != null ? filaD('Quedó en el stock', fmtV(p, x.quedaronG)) : '') +
+    (exc > 0 ? '<div class="dsec warn">' + ICO.alerta + ' Salieron más de lo calculado</div>' + filaD('El stock alcanzaba para', fmt(x.alcanzaba || 0) + ' rollos') + filaD('Salieron de más', fmt(x.excesoR || 0) + ' rollos') + filaD('Materia que no estaba en el stock', fmtV(p, exc)) : '') +
     '<button class="btn del full" onclick="' + dsp('borrarProduccion', x.id) + '">Deshacer rollos hechos</button>' +
     btnVolver('detalleDiaProd', vol));
 }
@@ -515,13 +542,13 @@ function detalleIngreso(id) {
   const costo = x.costoKilo ? x.gramos / 1000 * x.costoKilo : 0, gr = x.gramosRollo || (p ? gpr(p) : 0);
   modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Ingreso de materia</div>' +
     '<div class="dsec">Ingreso</div>' +
-    filaD('Llegó', fmt(x.cantidad) + ' ' + u) + (x.kilosCaneca ? filaD('Kilos por caneca', fmt(x.kilosCaneca)) : '') + filaD('Equivale a', fmtG(x.gramos) + ' (' + fmt(x.gramos / 1000) + ' kg)') +
+    filaD('Llegó', fmt(x.cantidad) + ' ' + u) + (x.kilosCaneca ? filaD('Litros por caneca', fmt(x.kilosCaneca)) : '') + (x.unidad === 'ca' ? filaD('Total', fmt(x.gramos / 1000) + ' litros') : filaD('Equivale a', fmtG(x.gramos) + ' (' + fmt(x.gramos / 1000) + ' kg)')) +
     filaD('Día', diaLargo(x.fecha), 1) + filaD('Hora', x.hora ? fmtHora(x.hora) : 'No se registró (ingreso antiguo)') +
     filaD('Registrado por', x.por ? esc(x.por) : '') +
     '<div class="dsec">Cuentas</div>' +
-    filaD('Costo por kilo', x.costoKilo ? money(x.costoKilo) : '') + filaD('Costo de este ingreso', costo ? money(costo) : '') +
+    filaD(x.unidad === 'ca' ? 'Costo por litro' : 'Costo por kilo', x.costoKilo ? money(x.costoKilo) : '') + filaD('Costo de este ingreso', costo ? money(costo) : '') +
     (gr > 0 ? filaD('Rollos que salen (≈)', fmt(Math.floor(x.gramos / gr + 1e-9))) : '') +
-    (x.stockDespuesG != null ? filaD('Stock después del ingreso', fmtG(x.stockDespuesG)) : '') +
+    (x.stockDespuesG != null ? filaD('Stock después del ingreso', fmtV(p, x.stockDespuesG)) : '') +
     btnVolver('', ''));
 }
 
@@ -557,7 +584,7 @@ function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
   $('#v-gan').className = q * gananciaRollo(p) < 0 ? 'neg' : 'pos';
-  $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : 'Falta definir gramos por rollo';
+  $('#v-gan').textContent = gpr(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : (unidS(p) ? 'Falta definir el tamaño del rollo' : 'Falta definir gramos por rollo');
 }
 function registrarVenta(id) {
   const p = prod(id), q = qtyVenta();
@@ -810,13 +837,13 @@ function cambiarMes(d) {
 }
 function resumenMes(ym) {
   const pr = db.produccion.filter(x => x.fecha.slice(0, 7) === ym), en = db.entradas.filter(x => x.fecha.slice(0, 7) === ym);
-  const porProd = {}, dias = {}, P = x => (porProd[x.productoId] = porProd[x.productoId] || { n: x.nombre, h: 0, g: 0 });
+  const porProd = {}, dias = {}, P = x => (porProd[x.productoId] = porProd[x.productoId] || { n: x.nombre, h: 0, g: 0, s: unidS(prod(x.productoId)) });
   pr.forEach(x => { P(x).h += x.rollos; dias[x.fecha] = dias[x.fecha] || {}; dias[x.fecha][x.nombre] = (dias[x.fecha][x.nombre] || 0) + x.rollos; });
   en.forEach(x => { P(x).g += x.gramos; });
   const lista = Object.values(porProd).sort((a, b) => a.n.localeCompare(b.n, 'es'));
-  return '<div class="grid"><div class="bubble"><small>Rollos hechos</small><b>' + fmt(suma(pr, 'rollos')) + '</b></div><div class="bubble"><small>Materia ingresada</small><b>' + fmt(suma(en, 'gramos') / 1000) + ' kg</b></div></div>' +
+  return '<div class="grid"><div class="bubble"><small>Rollos hechos</small><b>' + fmt(suma(pr, 'rollos')) + '</b></div><div class="bubble"><small>Materia ingresada</small><b>' + fmt(suma(en.filter(x => x.unidad !== 'ca'), 'gramos') / 1000) + ' kg' + (en.some(x => x.unidad === 'ca') ? ' · ' + fmt(suma(en.filter(x => x.unidad === 'ca'), 'gramos') / 1000) + ' L' : '') + '</b></div></div>' +
     '<div class="sub" style="margin:0 0 6px">Cada mes empieza de cero; lo que queda en stock pasa al mes siguiente.</div>' +
-    '<h2>Producción y materia del mes</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">Hizo ' + fmt(x.h) + ' rollos · ingresó ' + fmtG(x.g) + '</div></div></div></div>').join('') : '<div class="empty">Sin producción ni ingresos este mes</div>') +
+    '<h2>Producción y materia del mes</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">Hizo ' + fmt(x.h) + ' rollos · ingresó ' + fmtV(x.s ? { categoria: 'Salsas' } : {}, x.g) + '</div></div></div></div>').join('') : '<div class="empty">Sin producción ni ingresos este mes</div>') +
     '<h2>Rollos hechos por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver el detalle</div>' + (Object.keys(dias).length ? '<div class="hcard">' + Object.keys(dias).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: Object.keys(dias[f]).map(n => fmt(dias[f][n]) + ' × ' + esc(n)).join(' · '), r: '+' + fmt(Object.values(dias[f]).reduce((a, b) => a + b, 0)), rs: 'rollos', on: "detalleDiaProd('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin rollos hechos este mes</div>');
 }
 function vGanancias() {

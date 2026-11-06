@@ -115,6 +115,18 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 
 ## Cambios parche17
 - Salsas se compran por CANECA, aliños por kilo. El stock sigue guardándose en gramos y las ventas por rollo no cambian; solo cambia cómo se ingresa.
-- Producto nuevo/editar: al escoger la categoría Salsas, el costo por kilo se cambia por "Kilos que trae cada caneca" y "Costo por caneca ($)" (costoKilo = costo de caneca / kilos). Aliños y Otro siguen con "Costo por kilo". Se guarda p.kilosCaneca. Funciones: esSalsa, costoKiloForm, cambiarCatForm.
+- Producto nuevo/editar: al escoger la categoría Salsas, el costo por kilo se cambia por "Litros que trae cada caneca" y "Costo por caneca ($)" (costoKilo = costo de caneca / kilos). Aliños y Otro siguen con "Costo por kilo". Se guarda p.kilosCaneca. Funciones: esSalsa, costoKiloForm, cambiarCatForm.
 - Stock > Ingresar: en productos de Salsas el botón dice "Ingresar canecas" y el formulario pide canecas que llegaron, kilos por caneca, gramos por rollo y costo por caneca; suma al stock (canecas x kilos x 1000 g). Los ingresos guardan unidad 'ca' y kilosCaneca; las listas y el detalle dicen "canecas". La capacidad de la caneca se recuerda en el producto. enCaneca() indica el modo.
-- Supuesto: la caneca se mide en kilos (si viene en litros, se escribe lo que pesa).
+- Las canecas vienen en LITROS (parche18): se pide "Litros que trae cada caneca" y para el stock se cuenta 1 litro = 1000 g. Por dentro el dato sigue llamándose kilosCaneca (p.kilosCaneca y x.kilosCaneca en los ingresos) y guarda los litros.
+
+## Cambios parche19
+- Las salsas se ven SOLO en litros y mililitros (nada de gramos ni kilos). Por dentro el stock de una salsa sigue guardado en el mismo campo (stockG, minimoG, gramosPorRollo) pero en MILILITROS (1 litro = 1000); la pantalla lo muestra como "20 L" o "30 ml". Los aliños siguen en gramos/kilos.
+- Ayudas en app.js: unidS(p) (es salsa), fmtV(p, valor) (muestra en L/ml o en g), esSalsa(categoria).
+- Producto de salsa: "Mililitros que lleva 1 rollo", "Avisar cuando queden (litros)", "Stock (litros)". Al cambiar la categoría en el formulario, los campos de stock y aviso se convierten solos y las etiquetas cambian (etiquetasForm, cambiarCatForm).
+- Ingreso de salsa: canecas x litros por caneca = litros que se suman. Costo por caneca; el costo por litro queda en p.costoKilo. Tarjeta de stock: "Lo que lleva cada rollo" y "Rollos por litro".
+- Historial/detalles de salsas dicen litros y mililitros; en Ganancias, "Materia ingresada" muestra los kg de aliños y aparte los litros de salsas.
+
+## Cambios parche20
+- Salsas: el tamaño del rollo se saca de dos formas (mlRollo en app.js). (1) Por peso: gramos que pesa 1 rollo y gramos que pesa 1 litro de salsa -> ml por rollo = gramos del rollo / gramos del litro x 1000. (2) Por rollos que salen de 1 caneca: ml por rollo = litros de la caneca x 1000 / rollos. Si se escriben los rollos por caneca, manda esa; si no, el peso.
+- Se pide en Producto (nuevo/editar) y en Stock > Ingresar canecas. Se guardan en el producto: p.pesoRolloG (gramos del rollo), p.gramosLitro, p.rollosCaneca, p.kilosCaneca (litros de la caneca). p.gramosPorRollo sigue guardando los ML por rollo para que el resto de la app no cambie.
+- El formulario muestra al vuelo "1 rollo ≈ X ml · 1 litro ≈ N rollos · 1 caneca ≈ N rollos". gprForm y gpIngreso dan los ml por rollo en cada formulario.
