@@ -96,3 +96,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 ## Cambios parche12
 - Sin emojis en toda la app: los mensajes cortos van en texto y los lugares con icono usan ICO (hora, persona, nota, alerta, check). Regla: no usar emojis; usar ic() con trazo.
 - Stock: la tarjeta de cada producto ahora son filas con título claro (Rollos listos para vender, Rollos hechos hoy / este mes, Cada rollo, De la materia salen, Precio de venta, Costo, Ganancia). La burbuja de la derecha dice "En bodega" con los gramos y para cuántos rollos alcanza.
+
+## Cambios parche13
+- Stock: la tarjeta de cada producto es más compacta: cuadritos de 3 columnas (Listos para vender, Hechos hoy, Hechos este mes, Cada rollo, Unidades por rollo, Rollos por kilo, Rollos por libra, Precio de venta, Costo) y debajo una barra de color con la ganancia (verde) o la pérdida (roja) por rollo y su % sobre el costo.
+- Arreglado: la ganancia y la pérdida volvieron a verse en color (en parche12 el CSS de .kv las pintaba de gris).

@@ -139,3 +139,13 @@ body.menu-on #drawer{transform:none}
 .kv b small{display:block;font-weight:600;color:var(--mut);font-size:.74rem;margin-top:1px}
 .meta .ic,.sub .ic,.hint .ic,.dsec .ic,.dt .ic,.tag .ic{width:14px;height:14px;vertical-align:-2px}
 .preview .ic{width:17px;height:17px;vertical-align:-3px}
+
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.tile{background:var(--soft);border-radius:12px;padding:7px 9px;min-width:0}
+.tile span{display:block;font-size:.66rem;color:var(--mut);line-height:1.2;font-weight:600}
+.tile b{display:block;font:800 .92rem var(--f-d);margin-top:2px}
+.tile b small,.gan b small{font:600 .68rem system-ui,sans-serif;opacity:.8}
+.gan{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;padding:9px 12px;border-radius:12px;background:var(--okbg);color:var(--ok);font-size:.8rem;font-weight:700}
+.gan.neg{background:var(--badbg);color:var(--bad)}
+.gan b{font:800 .95rem var(--f-d);text-align:right}
+.item .actions{margin-top:10px}
