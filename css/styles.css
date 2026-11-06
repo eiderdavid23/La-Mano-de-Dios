@@ -149,3 +149,13 @@ body.menu-on #drawer{transform:none}
 .gan.neg{background:var(--badbg);color:var(--bad)}
 .gan b{font:800 .95rem var(--f-d);text-align:right}
 .item .actions{margin-top:10px}
+
+.lis{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:12px;font-size:.86rem;font-weight:600;color:var(--mut)}
+.lis b{font:800 1.05rem var(--f-d);color:var(--txt);text-align:right}
+.lis b small{font:600 .7rem system-ui,sans-serif;color:var(--mut)}
+.mas{margin-top:8px}
+.mas summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:8px;border-radius:12px;background:var(--soft);font-size:.8rem;font-weight:700;color:var(--txt)}
+.mas summary::-webkit-details-marker{display:none}
+.mas summary::after{content:"";width:7px;height:7px;margin:-3px 0 0 9px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
+.mas[open] summary::after{margin-top:3px;transform:rotate(-135deg)}
+.mas[open] .kv:first-of-type{margin-top:6px}

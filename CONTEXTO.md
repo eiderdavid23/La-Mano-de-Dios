@@ -100,3 +100,6 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 ## Cambios parche13
 - Stock: la tarjeta de cada producto es más compacta: cuadritos de 3 columnas (Listos para vender, Hechos hoy, Hechos este mes, Cada rollo, Unidades por rollo, Rollos por kilo, Rollos por libra, Precio de venta, Costo) y debajo una barra de color con la ganancia (verde) o la pérdida (roja) por rollo y su % sobre el costo.
 - Arreglado: la ganancia y la pérdida volvieron a verse en color (en parche12 el CSS de .kv las pintaba de gris).
+
+## Cambios parche14
+- Stock: la tarjeta del producto vuelve a ser simple. Se ve siempre: nombre, categoría, "En bodega" (gramos y para cuántos rollos alcanza), "Listos para vender" y la barra de ganancia (verde) o pérdida (roja) por rollo. El resto va escondido en el botón "Ver más datos" como filas con título (hechos hoy y este mes, peso de cada rollo, unidades por rollo, rollos por kilo, rollos por libra, precio de venta, costo). Los cuadritos de parche13 ya no se usan.

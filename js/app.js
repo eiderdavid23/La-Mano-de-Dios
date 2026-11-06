@@ -266,26 +266,22 @@ function vStock() {
     (rec.length ? '<h2 style="margin-top:22px">Últimos rollos hechos</h2>' + hint + rec.map(x => lineaProd(x)).join('') : '') +
     (ing.length ? '<h2 style="margin-top:22px">Últimos ingresos de materia</h2>' + hint + ing.map(x => lineaIngreso(x)).join('') : '');
 }
+const stkAb = {};
 function listaStock() {
   const l = filtrados();
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
-  const tl = (k, v) => '<div class="tile"><span>' + k + '</span><b>' + v + '</b></div>';
+  const kv = (k, v) => '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>';
   return l.map(p => {
     const g = gpr(p), ga = gananciaRollo(p), cr = costoRollo(p), ap = apartadoR(p);
+    const mas = kv('Rollos hechos hoy', fmt(hechosEn(p.id, hoy()))) + kv('Rollos hechos este mes', fmt(hechosMes(p.id, hoy().slice(0, 7)))) +
+      (g > 0 ? kv('Peso de cada rollo', fmtG(g)) + kv('Unidades por rollo', fmt(p.unidadesRollo)) + kv('Rollos por kilo', fmt(1000 / g)) + kv('Rollos por libra', fmt(500 / g)) + kv('Precio de venta por rollo', money(p.precio)) + kv('Costo por rollo', money(cr)) : kv('Precio de venta por rollo', money(p.precio)));
     return '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span></div></div>' +
       '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>En bodega</small>' + fmtG(dispG(p)) + (g > 0 ? '<small>para ' + rollosDisp(p).toLocaleString('es-CO') + ' rollos</small>' : '') + '</span></div>' +
-      '<div class="tiles">' +
-      tl('Listos para vender', fmt(p.hechos || 0) + (ap > 0 ? ' <small>(' + fmt(ap) + ' apartados)</small>' : '')) +
-      tl('Hechos hoy', fmt(hechosEn(p.id, hoy()))) +
-      tl('Hechos este mes', fmt(hechosMes(p.id, hoy().slice(0, 7)))) +
-      (g > 0
-        ? tl('Cada rollo', fmtG(g)) + tl('Unidades por rollo', fmt(p.unidadesRollo)) + tl('Rollos por kilo', fmt(1000 / g)) + tl('Rollos por libra', fmt(500 / g)) +
-          tl('Precio de venta', money(p.precio)) + tl('Costo', money(cr))
-        : tl('Precio de venta', money(p.precio))) +
-      '</div>' +
+      '<div class="lis"><span>Listos para vender</span><b>' + fmt(p.hechos || 0) + ' rollos' + (ap > 0 ? ' <small>(' + fmt(ap) + ' apartados en pedidos)</small>' : '') + '</b></div>' +
       (g > 0
         ? '<div class="gan ' + gCls(ga) + '"><span>' + gLbl(ga) + ' por rollo</span><b>' + money(Math.abs(ga)) + ' <small>(' + fmt(cr > 0 ? ga / cr * 100 : 0) + ' % sobre el costo)</small></b></div>'
         : '<div class="gan neg"><span>Falta definir los gramos por rollo. Toca Editar.</span></div>') +
+      '<details class="mas"' + (stkAb[p.id] ? ' open' : '') + ' ontoggle="stkAb[\'' + p.id + '\']=this.open"><summary>Ver más datos</summary>' + mas + '</details>' +
       '<div class="actions"><button class="btn main" onclick="formIngreso(\'' + p.id + '\')">＋ Ingresar kilos/libras</button><button class="btn main" onclick="formProduccion(\'' + p.id + '\')">' + ICO.rollos + ' Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>';
   }).join('');
 }
