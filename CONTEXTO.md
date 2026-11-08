@@ -141,3 +141,10 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Rollos hechos (formHechos / confirmarHechos): se escribe kilos usados y rollos que salieron. Suma a p.hechos y acumula p.kilosUsados y p.rollosSalidos. Rollos por kilo = rollosSalidos / kilosUsados (rollosKilo en app.js); si aun no hay datos usa 1000 / gramosPorRollo del producto viejo. Costo por rollo = costoKilo / rollos por kilo; sin eso no se muestra ganancia.
 - Vender y Pedidos descuentan p.hechos como antes. Bajo = sin rollos (hechos <= 0).
 - Se quitaron: kilos/libras/canecas, ingreso de materia, gramos por rollo en el formulario. Datos viejos (stockG, entradas) quedan guardados pero no se ven.
+
+## Cambios parche22 (productos simples, sin pesos ni conversiones)
+- Esto REEMPLAZA las reglas de gramos, canecas, kilos y "ingreso de materia" de arriba. Un producto tiene: nombre, categoria, unidades que trae el rollo (unidadesRollo), precio de venta (precio), precio del kilo (costoKilo; en salsas, del litro) y rollos listos que hay (hechos = el stock).
+- Rollos hechos (formHechos / confirmarHechos): solo la cantidad y el dia. Suma a p.hechos y guarda un registro en db.produccion con el precio de ese momento. No se piden kilos.
+- Ganancia del mes de un producto = rollos hechos del mes x precio de venta - precio del kilo (el costo se cuenta una vez por mes, si hizo rollos). Se ve en tiempo real en Stock, Inicio y Ganancias. Funciones: valorHecho, costoMes, gananciaMes. Si se usa mas de un kilo en el mes, se escribe en "Precio del kilo" el costo total.
+- Las ventas ya no calculan ganancia (costoRollo = 0); Vender y Pedidos siguen descontando p.hechos. Inicio muestra "Vendido hoy". Bajo = sin rollos (hechos <= 0).
+- Se quitaron: kilos/libras/canecas, ingreso de materia, gramos por rollo. Datos viejos quedan guardados pero no se ven.

@@ -91,8 +91,10 @@ const hechosMes = (pid, ym) => (db.produccion || []).filter(x => x.productoId ==
 const dispG = p => p.stockG;
 const rollosDisp = p => gpr(p) > 0 ? Math.floor(dispG(p) / gpr(p) + 1e-9) : 0;
 const bajo = p => (p.hechos || 0) <= 0;
-const rollosKilo = p => p.kilosUsados > 0 && p.rollosSalidos > 0 ? p.rollosSalidos / p.kilosUsados : (gpr(p) > 0 ? 1000 / gpr(p) : 0);
-const costoRollo = p => rollosKilo(p) > 0 && p.costoKilo > 0 ? p.costoKilo / rollosKilo(p) : 0;
+const costoRollo = p => 0;
+const valorHecho = (p, ym) => db.produccion.filter(x => x.productoId === p.id && x.fecha.slice(0, 7) === ym).reduce((a, x) => a + x.rollos * (x.precio != null ? x.precio : (p.precio || 0)), 0);
+const costoMes = (p, ym) => hechosMes(p.id, ym) > 0 ? (p.costoKilo || 0) : 0;
+const gananciaMes = (p, ym) => valorHecho(p, ym) - costoMes(p, ym);
 const gananciaRollo = p => p.precio - costoRollo(p);
 const gLbl = n => n < 0 ? 'Pérdida' : 'Ganancia';
 const gCls = n => n < 0 ? 'neg' : 'pos';
@@ -275,15 +277,15 @@ function render() {
 
 // ===== Inicio =====
 function vInicio() {
-  const vh = ventasDia(hoy()), vm = ventasMes(hoy().slice(0, 7));
-  const bajos = db.productos.filter(p => bajo(p));
-  return '<div class="hero ' + gHero(suma(vh, 'ganancia')) + '"><small>' + gLbl(suma(vh, 'ganancia')) + ' de hoy</small><b data-n="' + Math.abs(suma(vh, 'ganancia')) + '">' + money(Math.abs(suma(vh, 'ganancia'))) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos · ' + money(suma(vh, 'total')) + ' en ventas</span></div>' +
+  const ym = hoy().slice(0, 7), vh = ventasDia(hoy()), bajos = db.productos.filter(p => bajo(p));
+  const g = db.productos.reduce((a, p) => a + gananciaMes(p, ym), 0);
+  return '<div class="hero"><small>Vendido hoy</small><b data-n="' + suma(vh, 'total') + '">' + money(suma(vh, 'total')) + '</b><span>' + fmt(suma(vh, 'rollos')) + ' rollos vendidos</span></div>' +
     '<div class="grid">' +
-    '<div class="bubble wide"><small>' + gLbl(suma(vm, 'ganancia')) + ' del mes (' + nombreMes(hoy().slice(0, 7)) + ')</small><b class="' + gCls(suma(vm, 'ganancia')) + '" data-n="' + Math.abs(suma(vm, 'ganancia')) + '">' + money(Math.abs(suma(vm, 'ganancia'))) + '</b></div>' +
+    '<div class="bubble wide"><small>' + gLbl(g) + ' del mes (' + nombreMes(ym) + ')</small><b class="' + gCls(g) + '" data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b></div>' +
     '<div class="bubble"><small>Productos</small><b>' + db.productos.length + '</b></div>' +
-    '<div class="bubble"><small>Stock bajo</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
+    '<div class="bubble"><small>Sin rollos</small><b class="' + (bajos.length ? 'neg' : '') + '">' + bajos.length + '</b></div>' +
     '</div>' +
-    (bajos.length ? '<h2>Por reponer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmt(p.hechos || 0) + '<br><small>rollos</small></span></div></div>').join('') : '') +
+    (bajos.length ? '<h2>Por hacer</h2>' + bajos.map(p => '<div class="item low"><div class="row"><div class="name">' + esc(p.nombre) + '</div><span class="pill low">' + fmt(p.hechos || 0) + '<br><small>rollos</small></span></div></div>').join('') : '') +
     (!db.productos.length ? '<div class="empty">Empieza creando tu primer producto en Stock</div>' : '');
 }
 
@@ -297,15 +299,15 @@ function vStock() {
 }
 const stkAb = {};
 function listaStock() {
-  const l = filtrados();
+  const l = filtrados(), ym = hoy().slice(0, 7);
   if (!l.length) return '<div class="empty">No hay productos con ese filtro</div>';
   return l.map(p => {
-    const ga = gananciaRollo(p), cr = costoRollo(p), ap = apartadoR(p), rk = rollosKilo(p), sab = p.kilosUsados > 0 && p.rollosSalidos > 0;
+    const ap = apartadoR(p), hm = hechosMes(p.id, ym), v = valorHecho(p, ym), g = v - costoMes(p, ym);
     return '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + fmt(p.unidadesRollo || 0) + ' unidades · ' + money(p.precio) + '</div></div>' +
-      '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>Rollos hechos</small>' + fmt(p.hechos || 0) + (ap > 0 ? '<small>' + fmt(ap) + ' apartados</small>' : '') + '</span></div>' +
-      '<div class="lis"><span>Del kilo salen</span><b>' + (rk > 0 ? '≈ ' + fmt(rk) + ' rollos' + (sab ? ' <small>(' + fmt(p.rollosSalidos) + ' rollos de ' + fmt(p.kilosUsados) + ' kilos)</small>' : '') : 'Aún no se sabe') + '</b></div>' +
+      '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>Rollos listos</small>' + fmt(p.hechos || 0) + (ap > 0 ? '<small>' + fmt(ap) + ' apartados</small>' : '') + '</span></div>' +
+      '<div class="lis"><span>Hechos este mes</span><b>' + fmt(hm) + ' rollos' + (hm > 0 ? ' <small>(' + money(v) + ')</small>' : '') + '</b></div>' +
       (p.costoKilo > 0 ? '<div class="lis"><span>Precio del kilo</span><b>' + money(p.costoKilo) + '</b></div>' : '') +
-      (cr > 0 ? '<div class="gan ' + gCls(ga) + '"><span>' + gLbl(ga) + ' por rollo</span><b>' + money(Math.abs(ga)) + '</b></div>' : '') +
+      (hm > 0 && p.costoKilo > 0 ? '<div class="gan ' + gCls(g) + '"><span>' + gLbl(g) + ' este mes</span><b>' + money(Math.abs(g)) + '</b></div>' : '') +
       '<div class="actions"><button class="btn main" onclick="formHechos(\'' + p.id + '\')">＋ Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>';
   }).join('');
 }
@@ -323,8 +325,8 @@ function formProducto(id) {
     '<label>Categoría</label><select id="f-cat">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades que trae el rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + (p.unidadesRollo || '') + '" placeholder="Ej: 14">' +
     '<label>Precio de venta del rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + (p.precio || '') + '" placeholder="Ej: 2000">' +
-    '<label>Precio del kilo ($; si es salsa, del litro)</label><input id="f-costo" type="number" inputmode="decimal" value="' + (p.costoKilo || '') + '" placeholder="Lo que pagas por 1 kilo">' +
-    '<label>' + (id ? 'Rollos hechos que hay' : 'Rollos hechos que tienes ahora (opcional)') + '</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.hechos || '') + '" placeholder="Ej: 20">' +
+    '<label>Precio del kilo ($; si es salsa, del litro)</label><input id="f-costo" type="number" inputmode="decimal" value="' + (p.costoKilo || '') + '" placeholder="Ej: 34000">' +
+    '<label>' + (id ? 'Rollos listos que hay' : 'Rollos listos que tienes ahora (opcional)') + '</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.hechos || '') + '" placeholder="Ej: 20">' +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
 }
 const esSalsa = c => String(c || '').trim().toLowerCase() === 'salsas';
@@ -346,12 +348,12 @@ function guardarProducto(id) {
   if (!nombre) return toast('Escribe el nombre');
   const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), hechos: r2(num($('#f-stock').value)) };
   if (id) {
-    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['precio', 'Precio de venta', money], ['costoKilo', 'Precio del kilo', money], ['hechos', 'Rollos hechos', fmt]];
+    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['precio', 'Precio de venta', money], ['costoKilo', 'Precio del kilo', money], ['hechos', 'Rollos listos', fmt]];
     const cb = CP.filter(c => (o[c[0]] || 0) !== (d[c[0]] || 0)).map(c => c[1] + ': ' + c[2](o[c[0]] || 0) + ' → ' + c[2](d[c[0]] || 0));
     Object.assign(prod(id), d);
     if (cb.length) anotar('producto_editado', 'Editó el producto ' + nombre, cb);
   } else {
-    db.productos.push(Object.assign({ id: uid(), stockG: 0, minimoG: 0, gramosPorRollo: 0, kilosUsados: 0, rollosSalidos: 0 }, d));
+    db.productos.push(Object.assign({ id: uid(), stockG: 0, minimoG: 0, gramosPorRollo: 0 }, d));
     anotar('producto_nuevo', 'Creó el producto ' + nombre);
   }
   guardar(); cerrarModal(); render(); toast('Producto guardado');
@@ -373,27 +375,27 @@ const gCosto = () => $('#i-uni').value === 'lb' ? 500 : 1000;
 
 // ===== Rollos hechos (producción) =====
 // ===== Rollos hechos (suma kilos y rollos: así se sabe cuántos salen por kilo) =====
+// ===== Rollos hechos: solo la cantidad (y el día) =====
 function formHechos(id) {
   if (espera()) return;
-  const p = prod(id), rk = rollosKilo(p);
-  modal('<h3>Rollos hechos · ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Hay ' + fmt(p.hechos || 0) + ' rollos' + (rk > 0 ? ' · del kilo salen ≈ ' + fmt(rk) : '') + '</div>' +
-    '<label>Kilos que usaste</label><input id="h-kg" type="number" inputmode="decimal" value="1" oninput="prevHechos(\'' + id + '\')">' +
-    '<label>¿Cuántos rollos salieron?</label><input id="h-cant" type="number" inputmode="decimal" placeholder="Ej: 30" oninput="prevHechos(\'' + id + '\')">' +
+  const p = prod(id);
+  modal('<h3>Rollos hechos · ' + esc(p.nombre) + '</h3><div class="sub" style="margin:2px 0 0">Hay ' + fmt(p.hechos || 0) + ' rollos listos</div>' +
+    '<label>¿Cuántos rollos hiciste?</label><input id="h-cant" type="number" inputmode="decimal" placeholder="Ej: 30" oninput="prevHechos(\'' + id + '\')">' +
+    '<label>Día</label><input id="h-fec" type="date" value="' + hoy() + '" max="' + hoy() + '" onchange="prevHechos(\'' + id + '\')">' +
     '<div class="preview" id="h-prev"></div>' +
     '<button class="btn main full" onclick="confirmarHechos(\'' + id + '\')">Registrar rollos hechos</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
 }
 function prevHechos(id) {
-  const p = prod(id), q = num($('#h-cant').value), k = num($('#h-kg').value);
+  const p = prod(id), q = num($('#h-cant').value), ym = ($('#h-fec').value || hoy()).slice(0, 7);
   if (q <= 0) { $('#h-prev').textContent = ''; return; }
-  const tk = (p.kilosUsados || 0) + k, tr = (p.rollosSalidos || 0) + q;
-  $('#h-prev').textContent = 'Quedan ' + fmt((p.hechos || 0) + q) + ' rollos' + (k > 0 ? ' · esta vez 1 kilo = ' + fmt(q / k) + ' rollos · con todo lo sumado 1 kilo = ' + fmt(tr / tk) : '');
+  const v = valorHecho(p, ym) + q * (p.precio || 0), c = p.costoKilo || 0;
+  $('#h-prev').textContent = 'Quedan ' + fmt((p.hechos || 0) + q) + ' rollos listos · ' + nombreMes(ym) + ': ' + fmt(hechosMes(id, ym) + q) + ' rollos = ' + money(v) + (c > 0 ? ' · ' + gLbl(v - c).toLowerCase() + ' ' + money(Math.abs(v - c)) : '');
 }
 function confirmarHechos(id) {
-  const p = prod(id), q = num($('#h-cant').value), k = num($('#h-kg').value);
-  if (q <= 0) return toast('Escribe cuántos rollos salieron');
+  const p = prod(id), q = num($('#h-cant').value), f = $('#h-fec').value || hoy();
+  if (q <= 0) return toast('Escribe cuántos rollos hiciste');
   p.hechos = r2((p.hechos || 0) + q);
-  if (k > 0) { p.kilosUsados = r2((p.kilosUsados || 0) + k); p.rollosSalidos = r2((p.rollosSalidos || 0) + q); }
-  db.produccion.push({ id: uid(), fecha: hoy(), reg: hoy(), hora: ahora(), por: quien(), productoId: id, nombre: p.nombre, rollos: q, kilos: k > 0 ? k : 0, gramos: 0, gramosRollo: 0, excesoG: 0, excesoR: 0, alcanzaba: 0, quedaronG: 0, quedaron: p.hechos });
+  db.produccion.push({ id: uid(), fecha: f, reg: hoy(), hora: ahora(), por: quien(), productoId: id, nombre: p.nombre, rollos: q, precio: p.precio, gramos: 0, gramosRollo: 0, excesoG: 0, excesoR: 0, alcanzaba: 0, quedaronG: 0, quedaron: p.hechos });
   guardar(); cerrarModal(); render(); toast('+' + fmt(q) + ' rollos hechos');
 }
 function borrarProduccion(id) {
@@ -402,16 +404,13 @@ function borrarProduccion(id) {
   const p = prod(x.productoId);
   if (p && (p.hechos || 0) < x.rollos - 1e-6) return toast('Esos rollos ya se vendieron; no se puede deshacer');
   if (!confirm('¿Deshacer estos rollos hechos?')) return;
-  if (p) {
-    p.stockG = r2((p.stockG || 0) + (x.gramos || 0) - (x.excesoG || 0)); p.hechos = r2((p.hechos || 0) - x.rollos);
-    if (x.kilos) { p.kilosUsados = Math.max(0, r2((p.kilosUsados || 0) - x.kilos)); p.rollosSalidos = Math.max(0, r2((p.rollosSalidos || 0) - x.rollos)); }
-  }
+  if (p) { p.stockG = r2((p.stockG || 0) + (x.gramos || 0) - (x.excesoG || 0)); p.hechos = r2((p.hechos || 0) - x.rollos); }
   anotar('rollos_deshechos', 'Deshizo ' + fmt(x.rollos) + ' rollos hechos de ' + x.nombre);
   db.produccion = db.produccion.filter(y => y.id !== id);
   guardar(); render();
 }
 function lineaProd(x, vol) {
-  return hfila({ t: esc(x.nombre), s: 'Rollos hechos' + (x.kilos ? ' · ' + fmt(x.kilos) + ' kg' : '') + (x.hora ? ' · ' + fmtHora(x.hora) : ''), r: '+' + fmt(x.rollos), rs: 'rollos', on: "detalleProd('" + x.id + "'" + (vol ? ",'" + vol + "'" : '') + ")" });
+  return hfila({ t: esc(x.nombre), s: 'Rollos hechos' + (x.hora ? ' · ' + fmtHora(x.hora) : ''), r: '+' + fmt(x.rollos), rs: 'rollos', on: "detalleProd('" + x.id + "'" + (vol ? ",'" + vol + "'" : '') + ")" });
 }
 function lineaIngreso(x) {
   return hfila({ t: esc(x.nombre), s: 'Ingreso de materia' + (x.hora ? ' · ' + fmtHora(x.hora) : ''), r: '+' + fmt(x.cantidad) + ' ' + uniTxt(x.unidad), on: "detalleIngreso('" + x.id + "')" });
@@ -421,11 +420,11 @@ function detalleProd(id, vol) {
   const p = prod(x.productoId), und = p && p.unidadesRollo ? r2(x.rollos * p.unidadesRollo) : null;
   modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Rollos hechos</div>' +
     filaD('Rollos hechos', fmt(x.rollos)) + filaD('Unidades', und != null ? fmt(und) : '') +
-    filaD('Kilos que usaste', x.kilos ? fmt(x.kilos) : '') + filaD('Salieron por kilo', x.kilos ? fmt(x.rollos / x.kilos) + ' rollos' : '') +
+    filaD('Valor a precio de venta', x.precio != null ? money(x.rollos * x.precio) : '') +
     filaD('Día', diaLargo(x.fecha), 1) +
+    filaD('Registrado el', x.reg ? diaLargo(x.reg) : '', 1) +
     filaD('Hora del registro', x.hora ? fmtHora(x.hora) : 'No se registró (registro antiguo)') +
     filaD('Registrado por', x.por ? esc(x.por) : '') +
-    (x.gramos > 0 ? filaD('Materia usada (registro antiguo)', fmtV(p, x.gramos)) : '') +
     '<button class="btn del full" onclick="' + dsp('borrarProduccion', x.id) + '">Deshacer rollos hechos</button>' +
     btnVolver('detalleDiaProd', vol));
 }
@@ -476,8 +475,8 @@ function ajustarQty(d, id) { $('#v-qty').value = Math.max(1, Math.round((qtyVent
 function calcVenta(id) {
   const p = prod(id), q = qtyVenta();
   $('#v-total').textContent = money(q * p.precio);
-  $('#v-gan').className = q * gananciaRollo(p) < 0 ? 'neg' : 'pos';
-  $('#v-gan').textContent = costoRollo(p) > 0 ? 'Ganancia: ' + money(q * gananciaRollo(p)) : '';
+  $('#v-gan').className = 'pos';
+  $('#v-gan').textContent = '';
 }
 function registrarVenta(id) {
   const p = prod(id), q = qtyVenta();
@@ -629,9 +628,6 @@ function detalleVenta(id, vol) {
     '<div class="dsec">Producto</div>' +
     filaD('Categoría', v.categoria ? esc(v.categoria) : '') + filaD('Rollos', fmt(v.rollos)) + filaD('Unidades', und != null ? fmt(und) : '') +
     filaD('Precio por rollo', money(v.precio)) + filaD('Total vendido', money(v.total)) +
-    '<div class="dsec">Cuentas</div>' +
-    filaD('Costo por rollo', money(v.costo)) + filaD('Ganancia por rollo', money(gr)) + filaD(gLbl(v.ganancia) + ' total', money(v.ganancia)) +
-    (v.costo > 0 ? filaD('% sobre el costo', fmt(gr / v.costo * 100) + ' %') : '') +
     (v.quedaron != null ? filaD('Rollos hechos que quedaron', fmt(v.quedaron)) : '') +
     (x && x.nota ? '<div class="dsec">Nota del pedido</div><div class="sub" style="margin:4px 0">' + esc(x.nota) + '</div>' : '') +
     (!x && v.fecha === hoy() ? '<button class="btn del full" onclick="' + dsp('borrarVenta', v.id) + '">Deshacer venta</button>' : '') +
@@ -639,7 +635,7 @@ function detalleVenta(id, vol) {
 }
 function detalleDia(f) {
   const vs = ventasDia(f).slice().reverse(), g = suma(vs, 'ganancia');
-  modal('<h3 class="cap">' + diaLargo(f) + '</h3><div class="sub" style="margin:2px 0 10px">' + vs.length + (vs.length === 1 ? ' venta' : ' ventas') + ' · ' + fmt(suma(vs, 'rollos')) + ' rollos · ' + money(suma(vs, 'total')) + ' vendido · ' + gLbl(g).toLowerCase() + ' ' + money(Math.abs(g)) + '</div>' +
+  modal('<h3 class="cap">' + diaLargo(f) + '</h3><div class="sub" style="margin:2px 0 10px">' + vs.length + (vs.length === 1 ? ' venta' : ' ventas') + ' · ' + fmt(suma(vs, 'rollos')) + ' rollos · ' + money(suma(vs, 'total')) + ' vendido</div>' +
     (vs.length ? '<div class="hint" style="margin:0 0 10px">Toca una venta para ver el detalle</div>' + '<div class="hcard">' + vs.map(v => lineaVenta(v, f)).join('') + '</div>' : '<div class="empty">Sin ventas ese día</div>') +
     '<button class="btn full" onclick="cerrarModal()">Cerrar</button>');
 }
@@ -661,7 +657,7 @@ function detallePedido(id) {
     filaD('Anotado por', x.por ? esc(x.por) : '') + filaD('Entrega prometida', x.entrega ? diaLargo(x.entrega) : 'Sin fecha', 1) +
     (ent ? '<div class="dsec">Entrega</div>' + filaD('Entregado el', diaLargo(x.entregadoEn), 1) + filaD('Hora de la entrega', x.entregadoHora ? fmtHora(x.entregadoHora) : 'No se registró (entrega antigua)') + filaD('Entregado por', x.entregadoPor ? esc(x.entregadoPor) : '') + filaD('Puntualidad', punt) : '') +
     '<div class="dsec">Productos</div>' + its.map(i => filaD(fmt(i.rollos) + ' × ' + esc(i.nombre), money(i.rollos * i.precio))).join('') +
-    filaD('Total del pedido', money(total)) + (ent && vs.length ? filaD(gLbl(suma(vs, 'ganancia')) + ' del pedido', money(suma(vs, 'ganancia'))) : '') +
+    filaD('Total del pedido', money(total)) +
     (x.nota ? '<div class="dsec">Nota</div><div class="sub" style="margin:4px 0">' + esc(x.nota) + '</div>' : '') +
     (ent ? '<button class="btn del full" onclick="' + dsp('deshacerEntrega', x.id) + '">Deshacer entrega</button>' : '<button class="btn main full" onclick="' + dsp('entregarPedido', x.id) + '">Entregar pedido</button><button class="btn del full" onclick="' + dsp('cancelarPedido', x.id) + '">Cancelar pedido</button>') +
     '<button class="btn full" onclick="cerrarModal()">Cerrar</button>');
@@ -679,7 +675,7 @@ function eventosHist() {
     const vv = db.ventas.find(v => v.pedidoId === x.id);
     if (x.estado === 'entregado') add({ k: 'entrega', id: x.id, ts: (vv ? ts(vv.id) : ts(x.id)) + 0.5, f: x.entregadoEn, h: x.entregadoHora || '', t: 'Entrega a ' + esc(cli), s: 'Pedido entregado · ' + fmt(nro(x)) + ' rollos', r: money(tot(x)), m: tot(x), b: cli + ' ' + nom });
   });
-  db.produccion.forEach(x => add({ k: 'rollos', id: x.id, f: x.fecha, h: x.hora || '', t: esc(x.nombre), s: 'Rollos hechos' + (x.kilos ? ' · ' + fmt(x.kilos) + ' kg' : ''), r: '+' + fmt(x.rollos), rs: 'rollos', b: x.nombre }));
+  db.produccion.forEach(x => add({ k: 'rollos', id: x.id, f: x.fecha, h: x.hora || '', t: esc(x.nombre), s: 'Rollos hechos', r: '+' + fmt(x.rollos), rs: 'rollos', b: x.nombre }));
   (db.registro || []).forEach(x => add({ k: 'cambio', id: x.id, f: x.fecha, h: x.hora || '', t: LBL[x.tipo] || 'Cambio', s: esc(x.texto || ''), b: (LBL[x.tipo] || '') + ' ' + (x.texto || '') }));
   return ev.sort((a, b) => a.f !== b.f ? (a.f < b.f ? 1 : -1) : a.h !== b.h ? (a.h < b.h ? 1 : -1) : b.ts - a.ts);
 }
@@ -727,37 +723,21 @@ function cambiarMes(d) {
   const [y, m] = mesSel.split('-').map(Number), n = new Date(y, m - 1 + d, 1);
   mesSel = n.getFullYear() + '-' + p2(n.getMonth() + 1); render();
 }
-function resumenMes(ym) {
-  const pr = db.produccion.filter(x => x.fecha.slice(0, 7) === ym), porProd = {}, dias = {};
-  pr.forEach(x => {
-    const k = x.productoId || x.nombre, P = porProd[k] = porProd[k] || { n: x.nombre, h: 0, k: 0 };
-    P.h += x.rollos; P.k += x.kilos || 0;
-    dias[x.fecha] = dias[x.fecha] || {}; dias[x.fecha][x.nombre] = (dias[x.fecha][x.nombre] || 0) + x.rollos;
-  });
-  const lista = Object.values(porProd).sort((a, b) => a.n.localeCompare(b.n, 'es'));
-  return '<div class="grid"><div class="bubble"><small>Rollos hechos</small><b>' + fmt(suma(pr, 'rollos')) + '</b></div><div class="bubble"><small>Kilos usados</small><b>' + fmt(pr.reduce((a, x) => a + (x.kilos || 0), 0)) + '</b></div></div>' +
-    '<h2>Rollos hechos por producto</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">Hizo ' + fmt(x.h) + ' rollos' + (x.k > 0 ? ' · usó ' + fmt(x.k) + ' kilos · salen ' + fmt(x.h / x.k) + ' por kilo' : '') + '</div></div></div></div>').join('') : '<div class="empty">Sin rollos hechos este mes</div>') +
-    '<h2>Rollos hechos por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver el detalle</div>' + (Object.keys(dias).length ? '<div class="hcard">' + Object.keys(dias).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: Object.keys(dias[f]).map(n => fmt(dias[f][n]) + ' × ' + esc(n)).join(' · '), r: '+' + fmt(Object.values(dias[f]).reduce((a, b) => a + b, 0)), rs: 'rollos', on: "detalleDiaProd('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin rollos hechos este mes</div>');
-}
 function vGanancias() {
-  const vm = ventasMes(mesSel), dias = {}, prods = {};
-  vm.forEach(v => {
-    (dias[v.fecha] = dias[v.fecha] || { r: 0, t: 0, g: 0 });
-    dias[v.fecha].r += v.rollos; dias[v.fecha].t += v.total; dias[v.fecha].g += v.ganancia;
-    const k = v.productoId || v.nombre;
-    (prods[k] = prods[k] || { n: v.nombre, r: 0, t: 0, g: 0 });
-    prods[k].r += v.rollos; prods[k].t += v.total; prods[k].g += v.ganancia;
-  });
-  const lista = Object.values(prods).sort((a, b) => b.g - a.g);
-  const g = suma(vm, 'ganancia');
-  return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(mesSel) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
-    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' total del mes (todos los productos)</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + money(suma(vm, 'total')) + ' vendido · ' + fmt(suma(vm, 'rollos')) + ' rollos</span></div>' +
-    resumenMes(mesSel) +
-    '<h2>Ganancia por producto</h2>' +
-    (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.n) + '</div><div class="meta">' + fmt(x.r) + ' rollos · ' + money(x.t) + ' vendido</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
-      '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin ventas este mes</div>') +
-    '<h2 style="margin-top:22px">Día por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver cada venta, a quién y a qué hora</div>' +
-    (Object.keys(dias).length ? '<div class="hcard">' + Object.keys(dias).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: fmt(dias[f].r) + ' rollos · ' + money(dias[f].t) + ' vendido', r: money(dias[f].g), rs: dias[f].g < 0 ? 'pérdida' : 'ganancia', rc: dias[f].g < 0 ? 'neg' : 'pos', on: "detalleDia('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin ventas este mes</div>');
+  const ym = mesSel, vm = ventasMes(ym), pr = db.produccion.filter(x => x.fecha.slice(0, 7) === ym), dv = {}, dp = {};
+  vm.forEach(v => { const d = dv[v.fecha] = dv[v.fecha] || { r: 0, t: 0 }; d.r += v.rollos; d.t += v.total; });
+  pr.forEach(x => { const d = dp[x.fecha] = dp[x.fecha] || {}; d[x.nombre] = (d[x.nombre] || 0) + x.rollos; });
+  const lista = db.productos.filter(p => hechosMes(p.id, ym) > 0).map(p => ({ p, h: hechosMes(p.id, ym), v: valorHecho(p, ym), c: costoMes(p, ym), g: gananciaMes(p, ym) })).sort((a, b) => b.g - a.g);
+  const g = lista.reduce((a, x) => a + x.g, 0);
+  return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(ym) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
+    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' del mes (todos los productos)</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + fmt(suma(pr, 'rollos')) + ' rollos hechos · ' + money(suma(vm, 'total')) + ' vendido</span></div>' +
+    '<div class="sub" style="margin:0 0 6px">Ganancia = rollos hechos × precio de venta − precio del kilo. Cada mes empieza de cero.</div>' +
+    '<h2>Ganancia por producto</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.p.nombre) + '</div><div class="meta">' + fmt(x.h) + ' rollos · ' + money(x.v) + ' − costo ' + money(x.c) + '</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
+      '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin rollos hechos este mes</div>') +
+    '<h2 style="margin-top:22px">Rollos hechos por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver el detalle</div>' +
+    (Object.keys(dp).length ? '<div class="hcard">' + Object.keys(dp).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: Object.keys(dp[f]).map(n => fmt(dp[f][n]) + ' × ' + esc(n)).join(' · '), r: '+' + fmt(Object.values(dp[f]).reduce((a, b) => a + b, 0)), rs: 'rollos', on: "detalleDiaProd('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin rollos hechos este mes</div>') +
+    '<h2 style="margin-top:22px">Ventas día por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver cada venta, a quién y a qué hora</div>' +
+    (Object.keys(dv).length ? '<div class="hcard">' + Object.keys(dv).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: fmt(dv[f].r) + ' rollos', r: money(dv[f].t), rs: 'vendido', on: "detalleDia('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin ventas este mes</div>');
 }
 
 // ===== Ajustes / respaldo =====
@@ -1083,7 +1063,6 @@ function limpiarPruebas() {
     const p = prod(x.productoId);
     if (p && (p.hechos || 0) < x.rollos - 1e-6) { rolNo++; return; }
     if (p) { p.stockG = r2(p.stockG + x.gramos - (x.excesoG || 0)); p.hechos = r2((p.hechos || 0) - x.rollos); }
-    if (p && x.kilos) { p.kilosUsados = Math.max(0, r2((p.kilosUsados || 0) - x.kilos)); p.rollosSalidos = Math.max(0, r2((p.rollosSalidos || 0) - x.rollos)); }
     idR[x.id] = 1;
   });
   db.produccion = db.produccion.filter(x => !idR[x.id]);
