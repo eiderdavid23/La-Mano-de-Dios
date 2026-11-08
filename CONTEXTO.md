@@ -57,6 +57,8 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Rollos hechos puede pasarse del stock: se registra y avisa que salieron más de lo calculado
 - [x] Sin emojis en el menú lateral ni en el botón Rollos hechos: ahora son iconos de línea (ICO en app.js)
 - [x] Quitada la línea "Con ese stock se pueden hacer N rollos · ≈ N unidades" de cada producto en Stock
+- [x] Ganancias más claras (parche23): resumen del mes (rollos hechos, valen, gastos, ganancia) y tarjeta por producto
+- [x] Precio del kilo en aliños y Precio de la caneca en salsas (parche23)
 
 ## Pendiente
 - [ ] Definir los gramos por rollo reales de cada producto
@@ -148,3 +150,9 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Ganancia del mes de un producto = rollos hechos del mes x precio de venta - precio del kilo (el costo se cuenta una vez por mes, si hizo rollos). Se ve en tiempo real en Stock, Inicio y Ganancias. Funciones: valorHecho, costoMes, gananciaMes. Si se usa mas de un kilo en el mes, se escribe en "Precio del kilo" el costo total.
 - Las ventas ya no calculan ganancia (costoRollo = 0); Vender y Pedidos siguen descontando p.hechos. Inicio muestra "Vendido hoy". Bajo = sin rollos (hechos <= 0).
 - Se quitaron: kilos/libras/canecas, ingreso de materia, gramos por rollo. Datos viejos quedan guardados pero no se ven.
+
+## Cambios parche23 (Ganancias más claras y precio de la caneca)
+- Producto: la etiqueta del costo depende de la categoría (lblCosto en app.js): Aliños y Otro = "Precio del kilo"; Salsas = "Precio de la caneca". Cambia sola al escoger la categoría en el formulario (etiquetaCosto). Se sigue guardando en p.costoKilo y el cálculo no cambió: es el gasto de la materia del mes. En salsas ahora se escribe lo que cuesta la caneca (antes era el litro): hay que reeditar las salsas que ya tenían precio por litro.
+- Ganancias (vGanancias): arriba la Ganancia o Pérdida del mes; "Resumen del mes" con Rollos hechos, Valen (rollos x precio), Gastos de materia y Ganancia; luego una tarjeta por producto (Valen, Gasto, Ganancia). Si falta el precio del kilo/caneca avisa en rojo. El total vendido se pasó a "Ventas día por día".
+- Al registrar rollos hechos, el aviso muestra: rollos = valor - gasto = ganancia.
+- Sigue pendiente: las ventas guardan ganancia = total vendido (costoRollo = 0); revisar detalleVenta/detalleDia. Gastos del mes aparte (luz, transporte, etc.) sin hacer.

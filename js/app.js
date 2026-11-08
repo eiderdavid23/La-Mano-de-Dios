@@ -97,6 +97,7 @@ const costoMes = (p, ym) => hechosMes(p.id, ym) > 0 ? (p.costoKilo || 0) : 0;
 const gananciaMes = (p, ym) => valorHecho(p, ym) - costoMes(p, ym);
 const gananciaRollo = p => p.precio - costoRollo(p);
 const gLbl = n => n < 0 ? 'Pérdida' : 'Ganancia';
+const lblCosto = c => esSalsa(c) ? 'Precio de la caneca' : 'Precio del kilo';
 const gCls = n => n < 0 ? 'neg' : 'pos';
 const gHero = n => n < 0 ? 'loss' : n > 0 ? 'gain' : '';
 function nombreMes(ym) {
@@ -306,7 +307,7 @@ function listaStock() {
     return '<div class="item ' + (bajo(p) ? 'low' : '') + '"><div class="row"><div><div class="name">' + esc(p.nombre) + '</div><div class="meta"><span class="tag">' + esc(catDe(p)) + '</span> ' + fmt(p.unidadesRollo || 0) + ' unidades · ' + money(p.precio) + '</div></div>' +
       '<span class="pill ' + (bajo(p) ? 'low' : '') + '"><small>Rollos listos</small>' + fmt(p.hechos || 0) + (ap > 0 ? '<small>' + fmt(ap) + ' apartados</small>' : '') + '</span></div>' +
       '<div class="lis"><span>Hechos este mes</span><b>' + fmt(hm) + ' rollos' + (hm > 0 ? ' <small>(' + money(v) + ')</small>' : '') + '</b></div>' +
-      (p.costoKilo > 0 ? '<div class="lis"><span>Precio del kilo</span><b>' + money(p.costoKilo) + '</b></div>' : '') +
+      (p.costoKilo > 0 ? '<div class="lis"><span>' + lblCosto(catDe(p)) + '</span><b>' + money(p.costoKilo) + '</b></div>' : '') +
       (hm > 0 && p.costoKilo > 0 ? '<div class="gan ' + gCls(g) + '"><span>' + gLbl(g) + ' este mes</span><b>' + money(Math.abs(g)) + '</b></div>' : '') +
       '<div class="actions"><button class="btn main" onclick="formHechos(\'' + p.id + '\')">＋ Rollos hechos</button><button class="btn" onclick="formProducto(\'' + p.id + '\')">Editar</button><button class="btn del" onclick="borrarProducto(\'' + p.id + '\')">Borrar</button></div></div>';
   }).join('');
@@ -322,14 +323,19 @@ function formProducto(id) {
   const p = id ? prod(id) : { nombre: '', categoria: 'Aliños', unidadesRollo: 14, precio: 2000, costoKilo: '', hechos: 0 };
   modal('<h3>' + (id ? 'Editar producto' : 'Nuevo producto') + '</h3>' +
     '<label>Nombre</label><input id="f-nombre" value="' + esc(p.nombre) + '" placeholder="Ej: Canela">' +
-    '<label>Categoría</label><select id="f-cat">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
+    '<label>Categoría</label><select id="f-cat" onchange="etiquetaCosto()">' + opcionesCat(p.categoria || (id ? 'Otro' : 'Aliños')) + '</select>' +
     '<label>Unidades que trae el rollo</label><input id="f-unid" type="number" inputmode="decimal" value="' + (p.unidadesRollo || '') + '" placeholder="Ej: 14">' +
     '<label>Precio de venta del rollo ($)</label><input id="f-precio" type="number" inputmode="decimal" value="' + (p.precio || '') + '" placeholder="Ej: 2000">' +
-    '<label>Precio del kilo ($; si es salsa, del litro)</label><input id="f-costo" type="number" inputmode="decimal" value="' + (p.costoKilo || '') + '" placeholder="Ej: 34000">' +
+    '<label id="f-costo-l">' + lblCosto(p.categoria || 'Aliños') + ' ($)</label><input id="f-costo" type="number" inputmode="decimal" value="' + (p.costoKilo || '') + '" placeholder="Ej: 34000">' +
     '<label>' + (id ? 'Rollos listos que hay' : 'Rollos listos que tienes ahora (opcional)') + '</label><input id="f-stock" type="number" inputmode="decimal" value="' + (p.hechos || '') + '" placeholder="Ej: 20">' +
     '<button class="btn main full" onclick="guardarProducto(\'' + (id || '') + '\')">Guardar</button><button class="btn full" onclick="cerrarModal()">Cancelar</button>');
 }
 const esSalsa = c => String(c || '').trim().toLowerCase() === 'salsas';
+function etiquetaCosto() {
+  const c = $('#f-cat').value;
+  $('#f-costo-l').textContent = lblCosto(c) + ' ($)';
+  $('#f-costo').placeholder = esSalsa(c) ? 'Ej: 120000' : 'Ej: 34000';
+}
 const uniTxt = u => u === 'ca' ? 'canecas' : (u || 'kg');
 // Las salsas guardan el stock en mililitros (1 litro = 1000) pero se muestran en litros
 const unidS = p => !!p && esSalsa(catDe(p));
@@ -348,7 +354,7 @@ function guardarProducto(id) {
   if (!nombre) return toast('Escribe el nombre');
   const d = { nombre, categoria: $('#f-cat').value.trim(), unidadesRollo: num($('#f-unid').value) || 1, precio: num($('#f-precio').value), costoKilo: num($('#f-costo').value), hechos: r2(num($('#f-stock').value)) };
   if (id) {
-    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['precio', 'Precio de venta', money], ['costoKilo', 'Precio del kilo', money], ['hechos', 'Rollos listos', fmt]];
+    const o = Object.assign({}, prod(id)), CP = [['nombre', 'Nombre', x => x], ['categoria', 'Categoría', x => x || 'Sin categoría'], ['unidadesRollo', 'Unidades por rollo', fmt], ['precio', 'Precio de venta', money], ['costoKilo', lblCosto($('#f-cat').value), money], ['hechos', 'Rollos listos', fmt]];
     const cb = CP.filter(c => (o[c[0]] || 0) !== (d[c[0]] || 0)).map(c => c[1] + ': ' + c[2](o[c[0]] || 0) + ' → ' + c[2](d[c[0]] || 0));
     Object.assign(prod(id), d);
     if (cb.length) anotar('producto_editado', 'Editó el producto ' + nombre, cb);
@@ -389,7 +395,7 @@ function prevHechos(id) {
   const p = prod(id), q = num($('#h-cant').value), ym = ($('#h-fec').value || hoy()).slice(0, 7);
   if (q <= 0) { $('#h-prev').textContent = ''; return; }
   const v = valorHecho(p, ym) + q * (p.precio || 0), c = p.costoKilo || 0;
-  $('#h-prev').textContent = 'Quedan ' + fmt((p.hechos || 0) + q) + ' rollos listos · ' + nombreMes(ym) + ': ' + fmt(hechosMes(id, ym) + q) + ' rollos = ' + money(v) + (c > 0 ? ' · ' + gLbl(v - c).toLowerCase() + ' ' + money(Math.abs(v - c)) : '');
+  $('#h-prev').textContent = 'Quedarán ' + fmt((p.hechos || 0) + q) + ' rollos listos. ' + nombreMes(ym) + ': ' + fmt(hechosMes(id, ym) + q) + ' rollos = ' + money(v) + (c > 0 ? ' − gasto ' + money(c) + ' = ' + gLbl(v - c).toLowerCase() + ' ' + money(Math.abs(v - c)) : '');
 }
 function confirmarHechos(id) {
   const p = prod(id), q = num($('#h-cant').value), f = $('#h-fec').value || hoy();
@@ -728,15 +734,19 @@ function vGanancias() {
   vm.forEach(v => { const d = dv[v.fecha] = dv[v.fecha] || { r: 0, t: 0 }; d.r += v.rollos; d.t += v.total; });
   pr.forEach(x => { const d = dp[x.fecha] = dp[x.fecha] || {}; d[x.nombre] = (d[x.nombre] || 0) + x.rollos; });
   const lista = db.productos.filter(p => hechosMes(p.id, ym) > 0).map(p => ({ p, h: hechosMes(p.id, ym), v: valorHecho(p, ym), c: costoMes(p, ym), g: gananciaMes(p, ym) })).sort((a, b) => b.g - a.g);
-  const g = lista.reduce((a, x) => a + x.g, 0);
+  const g = lista.reduce((a, x) => a + x.g, 0), vT = lista.reduce((a, x) => a + x.v, 0), cT = lista.reduce((a, x) => a + x.c, 0);
+  const fila = (k, v) => '<div class="lis"><span>' + k + '</span><b>' + v + '</b></div>';
+  const barra = n => '<div class="gan ' + gCls(n) + '"><span>' + gLbl(n) + '</span><b>' + money(Math.abs(n)) + '</b></div>';
   return '<div class="month"><button onclick="cambiarMes(-1)">‹</button><b>' + nombreMes(ym) + '</b><button onclick="cambiarMes(1)">›</button></div>' +
-    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' del mes (todos los productos)</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + fmt(suma(pr, 'rollos')) + ' rollos hechos · ' + money(suma(vm, 'total')) + ' vendido</span></div>' +
-    '<div class="sub" style="margin:0 0 6px">Ganancia = rollos hechos × precio de venta − precio del kilo. Cada mes empieza de cero.</div>' +
-    '<h2>Ganancia por producto</h2>' + (lista.length ? lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.p.nombre) + '</div><div class="meta">' + fmt(x.h) + ' rollos · ' + money(x.v) + ' − costo ' + money(x.c) + '</div></div><span class="pill ' + (x.g < 0 ? 'low' : '') + '">' + money(x.g) + '</span></div></div>').join('') +
-      '<div class="item" style="border-color:var(--ac)"><div class="row"><div class="name">Total de todos los productos</div><span class="pill ' + (g < 0 ? 'low' : '') + '">' + money(g) + '</span></div></div>' : '<div class="empty">Sin rollos hechos este mes</div>') +
+    '<div class="hero ' + gHero(g) + '"><small>' + gLbl(g) + ' del mes</small><b data-n="' + Math.abs(g) + '">' + money(Math.abs(g)) + '</b><span>' + fmt(suma(pr, 'rollos')) + ' rollos hechos en ' + nombreMes(ym) + '</span></div>' +
+    '<h2>Resumen del mes</h2>' + (lista.length ? '<div class="item">' + fila('Rollos hechos', fmt(suma(pr, 'rollos'))) + fila('Valen (rollos × precio de venta)', money(vT)) + fila('Gastos de materia', '−' + money(cT)) + barra(g) + '</div>' +
+      '<div class="sub" style="margin:0 0 6px">Ganancia = lo que valen los rollos hechos − lo que gastaste en la materia. Cada mes empieza de cero.</div>' : '<div class="empty">Sin rollos hechos este mes</div>') +
+    (lista.length ? '<h2 style="margin-top:22px">Ganancia por producto</h2>' + lista.map(x => '<div class="item"><div class="row"><div><div class="name">' + esc(x.p.nombre) + '</div><div class="meta">' + fmt(x.h) + ' rollos hechos</div></div></div>' +
+      fila('Valen', money(x.v)) + fila('Gasto · ' + lblCosto(catDe(x.p)).toLowerCase(), '−' + money(x.c)) + barra(x.g) +
+      (x.c <= 0 ? '<div class="hint">Falta el ' + lblCosto(catDe(x.p)).toLowerCase() + ': ponlo en Editar para ver la ganancia real.</div>' : '') + '</div>').join('') : '') +
     '<h2 style="margin-top:22px">Rollos hechos por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver el detalle</div>' +
     (Object.keys(dp).length ? '<div class="hcard">' + Object.keys(dp).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: Object.keys(dp[f]).map(n => fmt(dp[f][n]) + ' × ' + esc(n)).join(' · '), r: '+' + fmt(Object.values(dp[f]).reduce((a, b) => a + b, 0)), rs: 'rollos', on: "detalleDiaProd('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin rollos hechos este mes</div>') +
-    '<h2 style="margin-top:22px">Ventas día por día</h2><div class="hint" style="margin:0 0 10px">Toca un día para ver cada venta, a quién y a qué hora</div>' +
+    '<h2 style="margin-top:22px">Ventas día por día</h2><div class="hint" style="margin:0 0 10px">Vendido en el mes: ' + money(suma(vm, 'total')) + '. Toca un día para ver cada venta, a quién y a qué hora</div>' +
     (Object.keys(dv).length ? '<div class="hcard">' + Object.keys(dv).sort().reverse().map(f => hfila({ t: '<span class="cap">' + nombreDia(f) + '</span>', s: fmt(dv[f].r) + ' rollos', r: money(dv[f].t), rs: 'vendido', on: "detalleDia('" + f + "')" })).join('') + '</div>' : '<div class="empty">Sin ventas este mes</div>');
 }
 
