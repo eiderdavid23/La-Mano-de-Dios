@@ -92,7 +92,7 @@ const dispG = p => p.stockG;
 const rollosDisp = p => gpr(p) > 0 ? Math.floor(dispG(p) / gpr(p) + 1e-9) : 0;
 const bajo = p => (p.hechos || 0) <= 0;
 const costoRollo = p => 0;
-const valorHecho = (p, ym) => db.produccion.filter(x => x.productoId === p.id && x.fecha.slice(0, 7) === ym).reduce((a, x) => a + x.rollos * (x.precio != null ? x.precio : (p.precio || 0)), 0);
+const valorHecho = (p, ym) => db.produccion.filter(x => x.productoId === p.id && x.fecha.slice(0, 7) === ym).reduce((a, x) => a + x.rollos * (p.precio || 0), 0);
 const costoMes = (p, ym) => hechosMes(p.id, ym) > 0 ? (p.costoKilo || 0) : 0;
 const gananciaMes = (p, ym) => valorHecho(p, ym) - costoMes(p, ym);
 const gananciaRollo = p => p.precio - costoRollo(p);
@@ -426,7 +426,7 @@ function detalleProd(id, vol) {
   const p = prod(x.productoId), und = p && p.unidadesRollo ? r2(x.rollos * p.unidadesRollo) : null;
   modal('<h3>' + esc(x.nombre) + '</h3><div class="sub" style="margin:2px 0 4px">Rollos hechos</div>' +
     filaD('Rollos hechos', fmt(x.rollos)) + filaD('Unidades', und != null ? fmt(und) : '') +
-    filaD('Valor a precio de venta', x.precio != null ? money(x.rollos * x.precio) : '') +
+    filaD('Valor a precio de venta', money(x.rollos * ((p && p.precio) != null ? p.precio : (x.precio || 0)))) +
     filaD('Día', diaLargo(x.fecha), 1) +
     filaD('Registrado el', x.reg ? diaLargo(x.reg) : '', 1) +
     filaD('Hora del registro', x.hora ? fmtHora(x.hora) : 'No se registró (registro antiguo)') +
