@@ -59,6 +59,7 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - [x] Quitada la línea "Con ese stock se pueden hacer N rollos · ≈ N unidades" de cada producto en Stock
 - [x] Ganancias más claras (parche23): resumen del mes (rollos hechos, valen, gastos, ganancia) y tarjeta por producto
 - [x] Precio del kilo en aliños y Precio de la caneca en salsas (parche23)
+- [x] Editar rollos hechos (producto, cantidad, día) y anotarlo en el Historial (parche25)
 
 ## Pendiente
 - [ ] Definir los gramos por rollo reales de cada producto
@@ -156,3 +157,10 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - Ganancias (vGanancias): arriba la Ganancia o Pérdida del mes; "Resumen del mes" con Rollos hechos, Valen (rollos x precio), Gastos de materia y Ganancia; luego una tarjeta por producto (Valen, Gasto, Ganancia). Si falta el precio del kilo/caneca avisa en rojo. El total vendido se pasó a "Ventas día por día".
 - Al registrar rollos hechos, el aviso muestra: rollos = valor - gasto = ganancia.
 - Sigue pendiente: las ventas guardan ganancia = total vendido (costoRollo = 0); revisar detalleVenta/detalleDia. Gastos del mes aparte (luz, transporte, etc.) sin hacer.
+
+## Cambios parche25 (editar rollos hechos)
+- En el detalle de un registro de Rollos hechos hay un botón "Editar rollos hechos" (formEditarProd / guardarEdicionProd en app.js). Se puede cambiar producto, cantidad y día. Sirve para corregir cuando se registraron en el producto equivocado.
+- Al guardar se ajusta p.hechos: se quitan los rollos viejos del producto anterior y se suman los nuevos al producto nuevo. Si esos rollos ya se vendieron (el stock quedaría en negativo) no deja.
+- El registro de producción guarda x.editado {fecha, hora, por}; el detalle lo muestra.
+- Se anota en el registro de cambios con tipo rollos_editados ("Rollos hechos editados"), con el antes y el después. Sale en Historial > Cambios y en Todo.
+- Sigue sin poder editarse: ventas, pedidos entregados.
