@@ -164,3 +164,8 @@ HTML + CSS + JavaScript puro, sin frameworks. Datos en localStorage del teléfon
 - El registro de producción guarda x.editado {fecha, hora, por}; el detalle lo muestra.
 - Se anota en el registro de cambios con tipo rollos_editados ("Rollos hechos editados"), con el antes y el después. Sale en Historial > Cambios y en Todo.
 - Sigue sin poder editarse: ventas, pedidos entregados.
+
+## Cambios parche26 (kilo o libra en el producto)
+- En Nuevo producto / Editar producto hay un selector "Se compra por" (Kilo o Libra) justo arriba del precio. La etiqueta del precio cambia a "Precio del kilo" o "Precio de la libra". Se guarda en p.unidadCosto ('kg' o 'lb'; si no existe se toma como kg).
+- En Salsas no sale el selector: sigue siendo "Precio de la caneca".
+- El precio se guarda tal cual lo escribes (no se convierte): el gasto del mes sigue siendo ese precio. El cambio de unidad se anota en el Historial como cualquier otra edicion del producto.
